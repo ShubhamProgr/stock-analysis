@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ company_name }} - Info</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+  <!-- Plotly.js -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+
+<div class="container py-4">
+
+  <!-- ✅ Company Info Layout -->
+  <div class="row mb-4">
+    <!-- Company Name Box -->
+    <div class="col-md-4">
+      <div class="company-name-box">
+        <h2>{{ company_data.longname }}</h2>
+      </div>
+    </div>
+
+    <!-- Info Mini Boxes (2x2 grid) -->
+    <div class="col-md-8">
+      <div class="row g-3">
+        <!-- Market Cap -->
+        <div class="col-6">
+          <div class="mini-box">
+            <h6>Market Cap</h6>
+            <p>₹ {{ "{:,.2f}".format(company_data.marketcap / 1e12) }} Lakh Cr</p>
+          </div>
+        </div>
+
+        <!-- Sector -->
+        <div class="col-6">
+          <div class="mini-box">
+            <h6>Sector</h6>
+            <p>{{ company_data.sector }}</p>
+          </div>
+        </div>
+
+        <!-- Profit Margins -->
+        <div class="col-6">
+          <div class="mini-box">
+            <h6>Profit Margins</h6>
+            <p>{{ "{:.2%}".format(company_data.profitmargins) }}</p>
+          </div>
+        </div>
+
+        <!-- 52 Week Change -->
+        <div class="col-6">
+          <div class="mini-box">
+            <h6>52 Week Change</h6>
+            <p>{{ "{:.2%}".format(company_data.week52change) }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ Charts -->
+  <div class="chart-container mb-4">
+    <div id="candleChart" style="width:100%; height:450px;"></div>
+  </div>
+
+  <div class="chart-container">
+    <div id="predictionChart" style="height:300px;"></div>
+  </div>
+</div>
+
+<script>
+  // ----- Candlestick Chart -----
+  const candleData = {{ candle_chart_data | tojson }};
+  const xValues = candleData.map(d => d.x);
+
+  const traceCandle = {
+      x: xValues,
+      open: candleData.map(d => d.o),
+      high: candleData.map(d => d.h),
+      low: candleData.map(d => d.l),
+      close: candleData.map(d => d.c),
+      type: 'candlestick',
+      increasing: { line: { color: '#26a69a', width: 1.5 }, fillcolor: '#26a69a' },
+      decreasing: { line: { color: '#ef5350', width: 1.5 }, fillcolor: '#ef5350' },
+      whiskerwidth: 0.4,
+      hoverinfo: 'x+open+high+low+close',
+      showlegend: false
+  };
+
+  const layout = {
+      plot_bgcolor: "#161b22",
+      paper_bgcolor: "#0d1117",
+      font: { color: "#c9d1d9" },
+      xaxis: {
+          title: "Date",
+          type: "date",
+          showgrid: true,
+          gridcolor: "#1e222d",
+          rangeslider: { visible: false }
+      },
+      yaxis: {
+          title: "Price (₹)",
+          showgrid: true,
+          gridcolor: "#1e222d"
+      },
+      dragmode: "pan",
+      hovermode: "x unified",
+      margin: { t: 20, b: 30, l: 50, r: 20 }
+  };
+
+  const config = {
+      responsive: true,
+      displayModeBar: false,
+      scrollZoom: true,
+      doubleClick: "reset+autosize"
+  };
+
+  Plotly.newPlot("candleChart", [traceCandle], layout, config);
+
+  // ----- Prediction vs Actual Bar Chart -----
+  const predictionData = {{ prediction_bar_data | tojson }};
+
+  const traceBar = {
+      x: ['Predicted', 'Actual'],
+      y: [predictionData.predicted, predictionData.actual],
+      type: 'bar',
+      marker: { color: ['#58a6ff', '#f85149'] }
+  };
+
+  const layoutBar = {
+      plot_bgcolor: '#161b22',
+      paper_bgcolor: '#0d1117',
+      font: { color: '#c9d1d9' },
+      yaxis: { title: 'Price (₹)', range: [predictionData.min_y, predictionData.max_y] }
+  };
+
+  Plotly.newPlot('predictionChart', [traceBar], layoutBar, {responsive: true});
+</script>
+
+</body>
+</html>

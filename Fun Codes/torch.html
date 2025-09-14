@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightbulb Pull String</title>
+<style>
+    html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        transition: background 0.5s;
+    }
+    #bulb {
+        width: 150px;
+        transition: filter 0.5s;
+    }
+    #string {
+        width: 4px;
+        height: 150px;
+        background: white;
+        margin-top: -10px;
+        cursor: pointer;
+        position: relative;
+    }
+    #string::after {
+        content: "";
+        position: absolute;
+        bottom: -20px;
+        left: -8px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+    }
+    .lit {
+        background: #f8f1c1;
+    }
+    .lit #bulb {
+        filter: drop-shadow(0 0 50px yellow);
+    }
+</style>
+</head>
+<body>
+
+<img id="bulb" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIwAAACMCAMAAACOUZayAAAABlBMVEX///8AAABVwtN+AAABJklEQVR4nO3TQY6DIBQE0BSq//9rRkZKICMbNax55i+WQHGLu89SHOufnAzSgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4B8pVLP7s/dTG39LzFHQynW3w6vE97eyMiN5I7vr0PjzZXRvnidkqNRMXhm5G5n8Td6x1rB3rr7P4z3tHwTjC1ZkfrYc6+5tVZBqxPpj5mHKorCv4gBfBi8Gnztj3UPfdmKNmpfzpfYdkuwUahDF1dAcNw/FmfVTx7tvxLDb1qSsmF4ikq2tGHw+apDNnU4b34WcuVuZ33ZyrvnJ8/pnznZ2Wn+Z4AHvDCvfxi98YF/hZ2+n9dt3Vu+QdaX3bZY1iYB1E+dNfZB1URay2h0sllf4Y+8mSv6MQDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAB/BXwZ1iFMvSE8gAAAABJRU5ErkJggg==" alt="Lightbulb">
+<div id="string"></div>
+
+<script>
+let isOn = false;
+const string = document.getElementById("string");
+
+string.addEventListener("click", () => {
+    isOn = !isOn;
+    if (isOn) {
+        document.body.classList.add("lit");
+    } else {
+        document.body.classList.remove("lit");
+    }
+});
+</script>
+
+</body>
+</html>
