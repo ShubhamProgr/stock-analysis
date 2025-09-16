@@ -38,7 +38,7 @@ tickers = [
 # ------------------------------
 fetch_fields = [
     "symbol", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
-    "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",   # ⚡ Added fields
+    "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",   
     "totalCash", "totalDebt", "52WeekChange", 
     "sharesOutstanding", "floatShares", "trailingPE"
 ]
@@ -79,8 +79,8 @@ BEGIN
         [fullTimeEmployees] INT,
         [marketCap] BIGINT,
         [totalRevenue] BIGINT,
-        [grossMargins] FLOAT,            -- ⚡ Added
-        [operatingMargins] FLOAT,        -- ⚡ Added
+        [grossMargins] FLOAT,           
+        [operatingMargins] FLOAT,        
         [profitMargins] FLOAT,
         [totalCash] BIGINT,
         [totalDebt] BIGINT,
