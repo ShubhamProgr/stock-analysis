@@ -38,16 +38,11 @@ conn = pyodbc.connect(
     r"PWD=a;"
 )
 
-# Function to get the next valid weekday (Monday if Friday)# Define NSE holidays (for 2025; add/update as needed)
+# Define NSE holidays (for 2025; add/update as needed)
 nse_holidays_2025 = {
-    pd.Timestamp("2025-01-26"),  # Republic Day
-    pd.Timestamp("2025-03-14"),  # Holi
-    pd.Timestamp("2025-04-18"),  # Good Friday
-    pd.Timestamp("2025-08-15"),  # Independence Day
-    pd.Timestamp("2025-10-02"),  # Gandhi Jayanti
-    pd.Timestamp("2025-10-21"),  # Diwali Laxmi Pujan
-    pd.Timestamp("2025-11-14"),  # Guru Nanak Jayanti
-    pd.Timestamp("2025-12-25"),  # Christmas
+    pd.Timestamp("2025-01-26"), pd.Timestamp("2025-03-14"), pd.Timestamp("2025-04-18"),
+    pd.Timestamp("2025-08-15"), pd.Timestamp("2025-10-02"), pd.Timestamp("2025-10-21"),
+    pd.Timestamp("2025-11-14"), pd.Timestamp("2025-12-25")
 }
 
 # Function to get the next valid trading day (skip weekends + holidays)
@@ -63,7 +58,7 @@ results = []
 
 for ticker, company in ticker_to_company.items():
     try:
-        # Query stock data
+        # === Query stock data ===
         query = """
             SELECT [Date], [Open], [High], [Low], [Close], [Volume]
             FROM StockData
@@ -77,11 +72,10 @@ for ticker, company in ticker_to_company.items():
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values('Date')
 
-        # Drop today's row if market is not yet closed
+        # Drop today's row if market not closed
         now = datetime.now()
-        market_close_time = time(15, 30)  # 3:30 PM IST
+        market_close_time = time(15, 30)
         today = pd.Timestamp(date.today())
-
         if df['Date'].iloc[-1].date() == today.date() and now.time() < market_close_time:
             df = df[df['Date'] < today]
 
@@ -89,10 +83,29 @@ for ticker, company in ticker_to_company.items():
             continue
 
         df = df.dropna()
-        X = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+        # === Fetch latest sentiment for this company ===
+        sent_query = """
+            SELECT TOP 1 Sentiment, Score
+            FROM Company_FinBERT_Sentiments
+            WHERE Ticker = ?
+            ORDER BY Score DESC
+        """
+        sent_df = pd.read_sql(sent_query, conn, params=[ticker])
+        if not sent_df.empty:
+            sentiment_label = sent_df['Sentiment'].iloc[0]
+            sentiment_score = sent_df['Score'].iloc[0]
+        else:
+            sentiment_label, sentiment_score = "NEUTRAL", 0.0
+
+        # Add sentiment as a feature (constant for now)
+        df['Sentiment_Score'] = sentiment_score
+
+        # === Features & Target ===
+        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']]
         y_reg = df['Close'].shift(-1).dropna()
         X = X.iloc[:-1]
-    
+
         if len(X) != len(y_reg):
             continue
 
@@ -100,7 +113,8 @@ for ticker, company in ticker_to_company.items():
         X_train, X_test, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2, shuffle=False)
 
         # Regression model
-        reg = RandomForestRegressor(n_estimators=100,
+        reg = RandomForestRegressor(
+            n_estimators=100,
             max_depth=10,
             min_samples_leaf=3,
             random_state=42
@@ -128,12 +142,15 @@ for ticker, company in ticker_to_company.items():
             'MAE': round(mae, 4),
             'MSE': round(mse, 4),
             'RMSE': round(rmse, 4),
-            'R2_Score': round(r2, 4)
+            'R2_Score': round(r2, 4),
+            'Sentiment': sentiment_label,
+            'Sentiment_Score': sentiment_score
         })
 
     except Exception as e:
         print(f"Error processing {ticker}: {e}")
         continue
+
 
 # Save results to Excel
 final_df = pd.DataFrame(results)
@@ -159,12 +176,17 @@ BEGIN
         MAE FLOAT,
         MSE FLOAT,
         RMSE FLOAT,
-        R2_Score FLOAT
+        R2_Score FLOAT,
+        Sentiment VARCHAR(50),
+        Sentiment_Score FLOAT
     );
 END
 """
 cursor = conn.cursor()
 cursor.execute(create_table_sql)
+conn.commit()
+
+cursor.execute("DELETE FROM Final_Analysis WHERE Prediction_Date = ?", prediction_date)
 conn.commit()
 
 # Insert into SQL Server
@@ -175,9 +197,9 @@ IF NOT EXISTS (
 INSERT INTO {table_name} (
     [Company], [Ticker], [Prediction_Date],
     [Predicted_Closing_Price], [Last_Close], [Last_Close_Date],
-    [MAE], [MSE], [RMSE], [R2_Score]
+    [MAE], [MSE], [RMSE], [R2_Score], [Sentiment], [Sentiment_Score]
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 for _, row in final_df.iterrows():
@@ -193,7 +215,9 @@ for _, row in final_df.iterrows():
         row['MAE'],
         row['MSE'],
         row['RMSE'],
-        row['R2_Score']
+        row['R2_Score'],
+        row['Sentiment'],
+        row['Sentiment_Score']
     )
     conn.execute(insert_sql, values)
 
