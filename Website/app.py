@@ -338,7 +338,7 @@ def run_stock_data():
         return "<h2>✅ Latest Stock Data Inserted.</h2>"
     except Exception as e:
         return f"<h2>❌ Error running Stock Data Daily: {e}</h2>"
-    
+    [ ]
 # --- QUERY ---
 
 # --- Email setup ---

@@ -186,8 +186,8 @@ cursor = conn.cursor()
 cursor.execute(create_table_sql)
 conn.commit()
 
-cursor.execute("DELETE FROM Final_Analysis WHERE Prediction_Date = ?", prediction_date)
-conn.commit()
+#cursor.execute("DELETE FROM Final_Analysis WHERE Prediction_Date = ?", prediction_date)
+#conn.commit()
 
 # Insert into SQL Server
 insert_sql = f"""
