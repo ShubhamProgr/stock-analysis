@@ -1,8 +1,7 @@
 import yfinance as yf
 import pandas as pd
 import pyodbc
-import os   
-from datetime import date, timedelta
+import os
 
 # ✅ List of stock tickers
 tickers = [
@@ -27,6 +26,7 @@ tickers = [
     'CONCOR.NS', 'IRCTC.NS', 'TRENT.NS', 'TVSMOTOR.NS', 'JUBLFOOD.NS'
     
 ]    # more tickers can be added as needed
+
 
 # ✅ Database connection string (uses raw string for backslashes)
 conn_str = (
@@ -61,56 +61,51 @@ conn.commit()
 all_data = pd.DataFrame()
 
 for ticker in tickers:
-    print(f"📥 Downloading lastest data for {ticker}")
+    print(f"📥 Downloading data for {ticker}")
     try:
-            
-        data = yf.download(ticker, period="5d")
+        data = yf.download(ticker,period='5d')
+        data.reset_index(inplace=True)  # Convert index to column
+        data['Ticker'] = ticker  # Add Ticker column
+        data.to_excel('all1.xlsx')
+        data = pd.read_excel('all1.xlsx', skiprows=3)
+        data.columns = ['Index', 'Date', 'Close', 'High', 'Low', 'Open', 'Volume', 'Ticker']
+        data.to_excel('all.xlsx')
 
-    # Reset index so 'Date' becomes a column
-        data.reset_index(inplace=True)
-
-    # If columns are MultiIndex (like from yf with one ticker), remove the ticker level
-        if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.droplevel(1)  # drop the first level (ticker name)
-
-    # Add 'Ticker' column at the end
-        data['Ticker'] = ticker
-
-            # Conversion to appropriate Data Types
+        # Conversion to appropriate Data Types
         data['Open'] = pd.to_numeric(data['Open'], errors='coerce').fillna(0)
         data['High'] = pd.to_numeric(data['High'], errors='coerce').fillna(0)
         data['Low'] = pd.to_numeric(data['Low'], errors='coerce').fillna(0)
         data['Close'] = pd.to_numeric(data['Close'], errors='coerce').fillna(0)
+        data['Index'] = pd.to_numeric(data['Index'], errors='coerce').fillna(0)
         data['Volume'] = pd.to_numeric(data['Volume'], errors='coerce').fillna(0).astype('int64')
-            
-        for i, row in data.iterrows():
-                try:
-                    cursor.execute("""
-        IF NOT EXISTS (
-            SELECT 1 FROM StockData WHERE [Ticker] = ? AND [Date] = ?
-        )
-        BEGIN
-            INSERT INTO StockData ([Ticker], [Date], [Open], [High], [Low], [Close],  [Volume])
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        END
-    """, (
-        row['Ticker'],            
-        row['Date'],
-        row['Ticker'],            
-        row['Date'],
-        row['Open'],
-        row['High'],
-        row['Low'],
-        row['Close'],
-        row['Volume']
-    ))
 
-                except Exception as e:
-                    print(f"❌ Error inserting row for {ticker} at index {i}: {e}")
+        for i, row in data.iterrows():
+            try:
+                cursor.execute("""
+                    IF NOT EXISTS (
+                        SELECT 1 FROM StockData WHERE Ticker = ? AND [Date] = ?
+                    )
+                    INSERT INTO StockData (Ticker, [Date], [Open], [High], [Low], [Close], [Index], [Volume])
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    row['Ticker'],
+                    row['Date'],
+                    row['Ticker'],
+                    row['Date'],
+                    (row['Open']),
+                    (row['High']),
+                    (row['Low']),
+                    (row['Close']),
+                    (row['Index']),
+                    int(row['Volume'])
+                ))
+            except Exception as e:
+                print(f"❌ Error inserting row for {ticker} at index {i}: {e}")
 
         conn.commit()
         all_data = pd.concat([all_data, data], ignore_index=True)
-        print(f"✅ Inserted latest data for {ticker}")
+        print(f"✅ Inserted data for {ticker}")
+
     except Exception as e:
         print(f"❌ Failed to fetch data for {ticker}: {e}")
 
@@ -124,9 +119,9 @@ if isinstance(all_data.columns, pd.MultiIndex):
 all_data.reset_index(drop=True, inplace=True)
 
 # ✅ Save to Excel in Documents folder
-excel_path = os.path.join(os.environ['USERPROFILE'], 'Documents', 'stock_data.xlsx')
+excel_path = os.path.join(os.environ['USERPROFILE'], 'Documents', 'Stock_Data.xlsx')
 try:
     all_data.to_excel(excel_path, index=False)
     print(f"📁 Excel file saved at: {excel_path}")
 except Exception as e:
-    print(f"❌ Excel saving error: {e}")
+    print(f"❌ Excel saving error: {e}") 
