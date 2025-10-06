@@ -541,54 +541,6 @@ def get_scheduled_queries():
         })
     return jsonify(data)
 
-# ---------- Analytics Page ----------
-@app.route("/analytics")
-def analytics_page():
-    company_query = request.args.get("company", "").lower()
-    
-    # Default top 5 companies
-    default_companies = ["reliance", "tcs", "infy", "hdfcbank", "icicibank"]
-
-    # Determine which companies to show
-    if company_query in ticker_map:
-        companies = [company_query]
-    else:
-        companies = default_companies
-
-    stock_data = {}
-
-    for comp in companies:
-        ticker = ticker_map[comp]
-        try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="1d", interval="1m")
-            hist = hist.reset_index()
-            datetime_col = "Datetime" if "Datetime" in hist.columns else "Date"
-            hist[datetime_col] = pd.to_datetime(hist[datetime_col])
-
-            # Prepare OHLC data for candlestick chart
-            ohlc = [
-                {
-                    "x": row[datetime_col].strftime("%H:%M"),
-                    "o": round(row["Open"], 2),
-                    "h": round(row["High"], 2),
-                    "l": round(row["Low"], 2),
-                    "c": round(row["Close"], 2)
-                }
-                for _, row in hist.iterrows()
-            ]
-            stock_data[comp] = {"ohlc": ohlc}
-
-        except Exception as e:
-            print(f"[analytics] Error fetching {comp} ({ticker}): {e}")
-            stock_data[comp] = {"ohlc": []}
-
-    return render_template(
-        "analytics.html",
-        companies=companies,
-        stock_data=stock_data
-    )
-
 # ---------- Single Ticker Per-Minute ----------
 @app.route("/api/live-price/<ticker>")
 def live_price(ticker):
