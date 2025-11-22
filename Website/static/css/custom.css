@@ -1,4 +1,3 @@
- /* ===== Global Dark Theme ===== */ 
 body {
   background-color: #0d1117;
   color: #ffffff !important;
@@ -10,14 +9,12 @@ body {
   flex-direction: column;
 }
 
-/* Headings & Text */
 h1, h2, h3, h4, h5, h6, p, span, td, th, li, a {
   color: #ffffff !important;
 }
 .text-muted { color: #c9d1d9 !important; }
 .text-accent { color: #58a6ff !important; }
 
-/* ===== Navbar ===== */
 .navbar {
   background-color: #161b22 !important;
   border-bottom: 1px solid #30363d;
@@ -31,7 +28,6 @@ h1, h2, h3, h4, h5, h6, p, span, td, th, li, a {
   color: #58a6ff !important;
 }
 
-/* ===== Sticky Header (Company Page) ===== */
 header.sticky-top {
   background-color: #161b22;
   border-bottom: 1px solid #30363d;
@@ -43,7 +39,6 @@ header.sticky-top h4 {
   color: #58a6ff;
 }
 
-/* ===== Company Info Box ===== */
 .company-box {
   background: linear-gradient(145deg, #161b22, #1e2633);
   border: 1px solid #30363d;
@@ -68,7 +63,6 @@ header.sticky-top h4 {
   font-size: 1rem;
 }
 
-/* ===== Chart Containers ===== */
 .chart-container {
   background-color: #161b22;
   position: relative;
@@ -78,10 +72,9 @@ header.sticky-top h4 {
   height: 350px;
   width: 100%;
   margin-bottom: 30px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.4); 
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
 }
 
-/* ===== Tabs (for switching charts) ===== */
 .nav-tabs {
   border-bottom: 1px solid #30363d;
 }
@@ -104,36 +97,31 @@ header.sticky-top h4 {
   color: #58a6ff;
 }
 
-/* ===== Fully Dark Themed Table ===== */
 .custom-dark-table {
   border-radius: 12px;
   overflow: hidden;
-  background-color: #0d1117 !important;  /* full dark background */
-  color: #f0f6fc !important;             /* bright text */
+  background-color: #0d1117 !important;
+  color: #f0f6fc !important;
   font-size: 14px;
   width: 100%;
   border-collapse: collapse;
 }
 
-/* Header */
 .custom-dark-table thead {
-  background-color: #21262d !important;  /* slightly lighter */
-  color: #58a6ff !important;             /* blue headers */
+  background-color: #21262d !important;
+  color: #58a6ff !important;
   font-weight: 600;
   text-align: center;
 }
 
-/* Body rows (always dark) */
 .custom-dark-table tbody tr {
   background-color: #0d1117 !important;
 }
 
-/* Alternate striping */
 .custom-dark-table tbody tr:nth-child(even) {
   background-color: #161b22 !important;
 }
 
-/* Table cells */
 .custom-dark-table td, 
 .custom-dark-table th {
   border: 1px solid #30363d !important;
@@ -143,13 +131,10 @@ header.sticky-top h4 {
   padding: 8px;
 }
 
-/* Row hover effect */
 .custom-dark-table tbody tr:hover {
-  background-color: #1e2633 !important;  /* subtle highlight */
+  background-color: #1e2633 !important;
 }
 
-
-/* ===== Cards / Panels ===== */
 .card, .card-body, .prediction {
   background-color: #161b22 !important;
   border: 1px solid #30363d !important;
@@ -163,7 +148,6 @@ header.sticky-top h4 {
   box-shadow: 0 6px 16px rgba(0,0,0,0.6);
 }
 
-/* ===== Form Inputs ===== */
 .form-control {
   background-color: #0d1117 !important;
   color: #ffffff !important;
@@ -179,7 +163,6 @@ header.sticky-top h4 {
   opacity: 1;
 }
 
-/* ===== Sidebar Vertical Menu ===== */
 .sidebar-card {
   background-color: #161b22;
   border: 1px solid #30363d;
@@ -229,7 +212,6 @@ header.sticky-top h4 {
   font-size: 14px;
 }
 
-/* ===== Mini Charts Grid ===== */
 .mini-charts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -258,7 +240,6 @@ header.sticky-top h4 {
   max-height: 100%;
 }
 
-/* ===== Layout ===== */
 .main-content {
   flex: 1;
   padding: 20px;
@@ -273,11 +254,9 @@ footer {
   border-top: 1px solid #30363d;
 }
 
-/* ===== Utilities ===== */
 .rounded { border-radius: 12px !important; }
 .shadow-sm { box-shadow: 0 2px 6px rgba(0,0,0,0.5) !important; }
 
-/* ===== Finance Background ===== */
 #stocks-bg {
   position: fixed;
   top: 0; 
@@ -297,7 +276,6 @@ footer,
   z-index: 1;
 }
 
-/* ===== Company Name Box ===== */
 .company-name-box { 
   background: linear-gradient(145deg, #161b22, #1e2633);
   border: 1px solid #30363d;
@@ -318,7 +296,6 @@ footer,
   letter-spacing: 0.5px;
 }
 
-/* Grid layout for mini info boxes */
 .info-boxes-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -354,9 +331,6 @@ footer,
   color: #c9d1d9;
 }
 
-/* ===== Query Page Styles ===== */
-
-/* Run Button */
 .btn-run {
   background-color: #238636;
   border: none;
@@ -372,7 +346,6 @@ footer,
   box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
 }
 
-/* Query Results Table */
 .custom-dark-table {
   width: 100%;
   border-collapse: collapse;
@@ -409,16 +382,14 @@ footer,
   background-color: #1e2633 !important;
 }
 
-/* Scrollable Results Wrapper */
 .table-container {
   max-height: 500px;
   overflow-y: auto;
   border-radius: 12px;
 }
 
-/* Schedule Button */
 .btn-schedule {
-    background-color: #ff9500;      /* bright orange for visibility */
+    background-color: #ff9500;
     border: none;
     color: #fff !important;
     border-radius: 30px;
@@ -429,16 +400,15 @@ footer,
 }
 
 .btn-schedule:hover {
-    background-color: #ffb347;      /* lighter orange on hover */
+    background-color: #ffb347;
     transform: translateY(-2px);
     box-shadow: 0px 6px 16px rgba(0,0,0,0.5);
 }
 
-/* Run Now Button */
 .btn-run {
-    background-color: #21262d;      /* dark gray matching theme */
+    background-color: #21262d;
     border: none;
-    color: #f0f6fc !important;      /* bright text */
+    color: #f0f6fc !important;
     border-radius: 30px;
     padding: 10px 25px;
     font-weight: 600;
@@ -447,16 +417,15 @@ footer,
 }
 
 .btn-run:hover {
-    background-color: #30363d;      /* slightly lighter on hover */
+    background-color: #30363d;
     transform: translateY(-2px);
     box-shadow: 0px 6px 14px rgba(0,0,0,0.5);
 }
 
-/* Schedule Button */
 .btn-schedule {
-    background-color: #21262d;      /* dark gray matching theme */
+    background-color: #21262d;
     border: none;
-    color: #f0f6fc !important;      /* bright text */
+    color: #f0f6fc !important;
     border-radius: 30px;
     padding: 10px 25px;
     font-weight: 600;
@@ -465,12 +434,11 @@ footer,
 }
 
 .btn-schedule:hover {
-    background-color: #30363d;      /* slightly lighter on hover */
+    background-color: #30363d;
     transform: translateY(-2px);
     box-shadow: 0px 6px 14px rgba(0,0,0,0.5);
 }
 
-/* Optional: slightly larger text for visibility */
 .btn-run, .btn-schedule {
     font-size: 1.05rem;
 }
@@ -485,7 +453,7 @@ footer,
 }
 
 .btn-scheduler-option {
-    background-color: #161b22;  /* darker than body but different from textarea */
+    background-color: #161b22;
     color: #f0f6fc;
     border: 1px solid #30363d;
     border-radius: 30px;
@@ -493,7 +461,7 @@ footer,
     font-weight: 500;
     transition: all 0.2s ease-in-out;
     cursor: pointer;
-    min-width: 100px;         /* ensures visibility */
+    min-width: 100px;
     text-align: center;
 }
 
@@ -510,21 +478,19 @@ footer,
 }
 
 .confirm-btn-container {
-    padding: 10px 0;           /* vertical spacing */
+    padding: 10px 0;
 }
 
 .btn-run {
-    min-width: 140px;          /* ensures uniform width */
+    min-width: 140px;
     text-align: center;
 }
 
-/* Table row hover */
 .custom-dark-table tbody tr:hover {
   cursor: pointer;
   transition: background 0.2s ease-in-out;
 }
 
-/* Cards / Panels / Boxes */
 .card:hover,
 .prediction:hover,
 .company-box:hover,
@@ -536,85 +502,18 @@ footer,
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Mini charts hover */
 .mini-chart-wrapper:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 14px rgba(0,0,0,0.5);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Buttons hover smooth */
 .btn-run:hover,
 .btn-schedule:hover,
 .btn-scheduler-option:hover {
   transition: all 0.2s ease-in-out;
 }
 
-/* ===== Scheduled Query Box (Floating & Spacious) ===== */
-.scheduled-query-box {
-    background-color: #161b22;      /* slightly lighter than body */
-    border: 1px solid #30363d;      /* subtle border */
-    border-radius: 14px;            /* rounded corners */
-    padding: 25px 30px;             /* more breathing room */
-    margin: 20px auto;              /* centered with spacing */
-    width: 90%;                     /* responsive width */
-    max-width: 650px;               /* prevents stretching on large screens */
-    box-shadow: 0 8px 20px rgba(0,0,0,0.5); /* floating effect */
-    display: flex;
-    flex-direction: column;
-    gap: 15px;                      /* space between elements */
-    position: relative;
-    min-height: 220px;   /* taller */
-    font-size: 16px;     /* bigger text */
-    padding: 20px;  
-}
-
-/* Scheduler Buttons Container */
-.scheduler-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 10px;
-}
-
-/* Confirm Button Container */
-.confirm-btn-container {
-    margin-top: 10px;
-    display: flex;
-    justify-content: flex-end; /* aligns confirm button to right */
-}
-
-/* Date & Time Input */
-#schedule_datetime_container input {
-    max-width: 250px;
-    width: 100%;
-}
-
-.scheduled-query-box textarea {
-    min-height: 150px;          /* same as previous */
-    padding: 30px;              /* same as previous */
-    background-color: #0d1117 !important;
-    color: #ffffff !important;
-    border-radius: 10px;
-    border: 1px solid #30363d;
-    font-family: monospace;
-    font-size: 14px;
-    resize: vertical;
-}
-.scheduled-query-box textarea:focus {
-    border-color: #58a6ff;
-    box-shadow: 0 0 0 2px rgba(88,166,255,0.25);
-    outline: none;
-}
-
-/* Hover and transition tweaks */
-.scheduled-query-box button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.5);
-    transition: all 0.2s ease-in-out;
-}
-
-/* Floating Scheduled Query Box */
 .scheduled-query-box {
     background-color: #161b22;
     border: 1px solid #30363d;
@@ -630,31 +529,83 @@ footer,
     position: relative;
 }
 
-/* Scheduler buttons container */
 .scheduler-buttons {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-start;
     gap: 10px;
 }
 
-/* Confirm button container */
 .confirm-btn-container {
     margin-top: 10px;
     display: flex;
     justify-content: flex-end;
 }
 
-/* Date & Time Input */
 #schedule_datetime_container input {
     max-width: 250px;
     width: 100%;
 }
 
-/* ===== Program Buttons (Sidebar) ===== */
+.scheduled-query-box textarea {
+    min-height: 150px;
+    padding: 30px;
+    background-color: #0d1117 !important;
+    color: #ffffff !important;
+    border-radius: 10px;
+    border: 1px solid #30363d;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+}
+.scheduled-query-box textarea:focus {
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 2px rgba(88,166,255,0.25);
+    outline: none;
+}
+
+.scheduled-query-box button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    transition: all 0.2s ease-in-out;
+}
+
+.scheduled-query-box {
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    padding: 25px 30px;
+    margin: 20px auto;
+    width: 90%;
+    max-width: 650px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+}
+
+.scheduler-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.confirm-btn-container {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+#schedule_datetime_container input {
+    max-width: 250px;
+    width: 100%;
+}
+
 .btn-program {
-  background-color: #21262d;        /* dark gray base */
+  background-color: #21262d;
   border: 1px solid #30363d;
-  color: #c9d1d9 !important;        /* muted text */
+  color: #c9d1d9 !important;
   border-radius: 10px;
   padding: 10px 15px;
   font-weight: 500;
@@ -667,10 +618,10 @@ footer,
 }
 
 .btn-program:hover {
-  background-color: #1e2633;        /* slightly lighter on hover */
-  color: #58a6ff !important;        /* neon blue accent */
+  background-color: #1e2633;
+  color: #58a6ff !important;
   border-color: #58a6ff;
-  box-shadow: 0 0 10px rgba(88,166,255,0.4); /* glowing hover */
+  box-shadow: 0 0 10px rgba(88,166,255,0.4);
   transform: translateY(-2px);
 }
 
@@ -679,13 +630,11 @@ footer,
   transform: scale(0.98);
 }
 
-/* Progress container inline inside card */
 #progressContainer {
   margin-top: 12px;
   position: relative;
 }
 
-/* ===== Navbar (Analytics) ===== */
 .navbar {
   background-color: #0d1117;
   padding: 15px;
@@ -700,9 +649,6 @@ footer,
   font-weight: 600;
 }
 
-/* ===== Analytics Page Tweaks ===== */
-
-/* Analytics Header Card */
 .analytics-header {
   text-align: center;
   padding: 20px;
@@ -715,7 +661,6 @@ footer,
   margin: 0;
 }
 
-/* Chart Card Consistency */
 .chart-card {
   background: linear-gradient(145deg, #161b22, #1e2633);
   border: 1px solid #30363d;
@@ -735,14 +680,12 @@ footer,
   text-align: center;
 }
 
-/* Chart Container (uniform size) */
 .chart-container {
   position: relative;
-  height: 350px;  /* matches stock + prediction charts */
+  height: 350px;
   width: 100%;
 }
 
-/* Latest Prediction Highlight */
 .prediction-box {
   background: #161b22;
   border: 1px solid #30363d;
@@ -765,10 +708,9 @@ footer,
 .prediction-box p {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #2ea043; /* success green */
+  color: #2ea043;
 }
 
-/* ===== Line Chart Styling ===== */
 .chart-container {
     background-color: #161b22; 
     border: 1px solid #30363d;
@@ -778,16 +720,14 @@ footer,
     width: 100%;
     margin-bottom: 30px;
     box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-    overflow-x: auto;           /* allows horizontal scroll if many points */
+    overflow-x: auto;
 }
 
-/* Hide default x-axis labels if needed */
 .chart-container .xtick text {
-    fill: #c9d1d9;             /* lighter text for hourly ticks */
+    fill: #c9d1d9;
     font-size: 0.85rem;
 }
 
-/* Tooltip hover styling */
 .plotly-tooltip {
     background-color: #0d1117 !important;
     color: #ffffff !important;
@@ -797,23 +737,21 @@ footer,
     padding: 6px 10px !important;
 }
 
-/* Candle body and wick styling */
 .plotly .candlestick .body {
-    stroke-width: 1px;          /* thinner candle borders */
+    stroke-width: 1px;
 }
 .plotly .candlestick .increasing {
-    fill: #2ea043 !important;   /* green for rising */
+    fill: #2ea043 !important;
 }
 .plotly .candlestick .decreasing {
-    fill: #f85149 !important;   /* red for falling */
+    fill: #f85149 !important;
 }
 
-/* ===== Toast Notifications ===== */
 #toastContainer {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 1050;               /* ensures it appears above everything */
+  z-index: 1050;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -837,30 +775,27 @@ footer,
 }
 
 .toast.success {
-  background-color: #4caf50;  /* green for success */
+  background-color: #4caf50;
 }
 
 .toast.error {
-  background-color: #f44336;  /* red for failure */
+  background-color: #f44336;
 }
 
-/* === Container === */
 .query-schedule-container {
-  position: relative;   /* anchor for absolute dropdown */
+  position: relative;
   width: 100%;
   display: inline-block;
   font-family: 'Inter', 'Roboto', sans-serif;
 }
 
-/* === Container === */
 .query-schedule-container {
-  position: relative;   /* anchor for absolute dropdown */
+  position: relative;
   width: 100%;
   display: inline-block;
   font-family: 'Inter', 'Roboto', sans-serif;
 }
 
-/* === Query Schedule button === */
 .query-schedule-box {
   background: #0d1117;
   color: #ffffff;
@@ -881,16 +816,15 @@ footer,
   transform: translateY(-2px);
 }
 
-/* === Dropdown under button === */
 #scheduleHoverList {
   display: none;
-  position: absolute;      
-  top: 0;                 
-  left: 100%;             
+  position: absolute;
+  top: 0;
+  left: 100%;
   background: #161b22;
   padding: 8px;
   border-radius: 8px;
-  width: 500px;       /* increased width for full queries */
+  width: 500px;
   max-height: 180px;
   overflow-y: auto;
   box-shadow: 0 8px 20px rgba(0,0,0,0.5);
@@ -900,14 +834,12 @@ footer,
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-/* Show dropdown smoothly */
 .query-schedule-container:hover #scheduleHoverList {
   display: block;
   opacity: 1;
   transform: translateX(0);
 }
 
-/* === List Items === */
 #scheduleHoverList ul {
   list-style: none;
   margin: 0;
@@ -929,7 +861,6 @@ footer,
   background: #21262d;
 }
 
-/* === Status text === */
 .text-success { color: #28a745 !important; font-weight: bold; }
 .text-danger  { color: #f85149 !important; font-weight: bold; }
 .text-warning { color: #e3b341 !important; font-weight: bold; }
