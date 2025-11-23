@@ -10,7 +10,6 @@ from datetime import datetime, date, time
 
 warnings.filterwarnings("ignore")
 
-# === Ticker to Company Mapping ===
 ticker_to_company = {
     'RELIANCE.NS': 'reliance', 'TCS.NS': 'tcs', 'INFY.NS': 'infosys', 'HDFC.NS': 'hdfc bank',
     'ICICIBANK.NS': 'icici bank', 'KOTAKBANK.NS': 'kotak bank', 'HCLTECH.NS': 'hcl',
@@ -29,7 +28,6 @@ ticker_to_company = {
     'TATACONSUM.NS': 'tata consumer', 'M&M.NS': 'mahindra', 'HAL.NS': 'hal', 'DLF.NS': 'dlf'
 }
 
-# Connect to SQL Server
 conn = pyodbc.connect(
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -38,27 +36,22 @@ conn = pyodbc.connect(
     r"PWD=a;"
 )
 
-# Define NSE holidays (for 2025; add/update as needed)
 nse_holidays_2025 = {
     pd.Timestamp("2025-01-26"), pd.Timestamp("2025-03-14"), pd.Timestamp("2025-04-18"),
     pd.Timestamp("2025-08-15"), pd.Timestamp("2025-10-02"), pd.Timestamp("2025-10-21"),
     pd.Timestamp("2025-11-14"), pd.Timestamp("2025-12-25")
 }
 
-# Function to get the next valid trading day (skip weekends + holidays)
 def get_next_trading_day(input_date):
     next_day = input_date + timedelta(days=1)
     while next_day.weekday() >= 5 or next_day in nse_holidays_2025:
         next_day += timedelta(days=1)
     return next_day
 
-
-# Prepare results
 results = []
 
 for ticker, company in ticker_to_company.items():
     try:
-        # === Query stock data ===
         query = """
             SELECT [Date], [Open], [High], [Low], [Close], [Volume]
             FROM StockData
@@ -72,7 +65,6 @@ for ticker, company in ticker_to_company.items():
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values('Date')
 
-        # Drop today's row if market not closed
         now = datetime.now()
         market_close_time = time(15, 30)
         today = pd.Timestamp(date.today())
@@ -84,7 +76,6 @@ for ticker, company in ticker_to_company.items():
 
         df = df.dropna()
 
-        # === Fetch latest sentiment for this company ===
         sent_query = """
             SELECT TOP 1 Sentiment, Score
             FROM Company_FinBERT_Sentiments
@@ -98,10 +89,8 @@ for ticker, company in ticker_to_company.items():
         else:
             sentiment_label, sentiment_score = "NEUTRAL", 0.0
 
-        # Add sentiment as a feature (constant for now)
         df['Sentiment_Score'] = sentiment_score
 
-        # === Features & Target ===
         X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']]
         y_reg = df['Close'].shift(-1).dropna()
         X = X.iloc[:-1]
@@ -109,10 +98,8 @@ for ticker, company in ticker_to_company.items():
         if len(X) != len(y_reg):
             continue
 
-        # Train/test split
         X_train, X_test, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2, shuffle=False)
 
-        # Regression model
         reg = RandomForestRegressor(
             n_estimators=100,
             max_depth=10,
@@ -121,11 +108,9 @@ for ticker, company in ticker_to_company.items():
         )
         reg.fit(X_train, y_reg_train)
 
-        # Predict next day's closing price
         latest_data = X.iloc[[-1]]
         predicted_price = reg.predict(latest_data)[0]
 
-        # Evaluate
         y_reg_pred = reg.predict(X_test)
         mae = mean_absolute_error(y_reg_test, y_reg_pred)
         mse = mean_squared_error(y_reg_test, y_reg_pred)
@@ -151,15 +136,12 @@ for ticker, company in ticker_to_company.items():
         print(f"Error processing {ticker}: {e}")
         continue
 
-
-# Save results to Excel
 final_df = pd.DataFrame(results)
 prediction_date = final_df.iloc[-1]['Prediction_Date'].strftime('%Y_%m_%d')
 output_path = fr'C:\Users\PC\Documents\Final_Analysis_{prediction_date}.xlsx'
 final_df.to_excel(output_path, index=False)
 print(f"✅ Final Analysis saved to {output_path}")
 
-# Create table if not exists
 table_name = 'Final_Analysis'
 create_table_sql = f"""
 IF NOT EXISTS (
@@ -186,10 +168,6 @@ cursor = conn.cursor()
 cursor.execute(create_table_sql)
 conn.commit()
 
-#cursor.execute("DELETE FROM Final_Analysis WHERE Prediction_Date = ?", prediction_date)
-#conn.commit()
-
-# Insert into SQL Server
 insert_sql = f"""
 IF NOT EXISTS (
     SELECT 1 FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?

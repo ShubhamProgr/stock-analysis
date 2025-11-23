@@ -1,6 +1,5 @@
 import pyodbc
 
-# ✅ Database connection string (uses raw string for backslashes)
 conn_str = (
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -8,12 +7,8 @@ conn_str = (
     r"UID=sa;"
     r"PWD=a;"
 )
-
-# ✅ Connect to SQL Server
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
-
-# Simplified insert query
 insert_query = """
 INSERT INTO Prediction_vs_Actual (
     [Company], 
@@ -39,8 +34,6 @@ WHERE NOT EXISTS (
       AND Prediction_vs_Actual.[Date] = Final_Analysis.[Prediction_Date]
 )
 """
-
-# Run and commit
 cursor.execute(insert_query)
 conn.commit()
 cursor.close()

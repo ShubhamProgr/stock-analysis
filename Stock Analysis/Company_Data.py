@@ -3,9 +3,6 @@ import pandas as pd
 import pyodbc
 import numpy
 
-# ------------------------------
-# SQL Server connection setup
-# ------------------------------
 conn_str = (
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -17,9 +14,6 @@ table_name = "Company_Info"
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
 
-# ------------------------------
-# List of tickers
-# ------------------------------
 tickers = [
     'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS',
     'KOTAKBANK.NS', 'HCLTECH.NS', 'LT.NS', 'ITC.NS', 'SBIN.NS',
@@ -40,12 +34,8 @@ tickers = [
     'TATAPOWER.NS', 'TORNTPHARM.NS', 'MCDOWELL-N.NS', 'VEDL.NS', 'ZOMATO.NS',
     'PETRONET.NS', 'PGHH.NS', 'POLYCAB.NS', 'ICICISENSX.NS', 'HAVELLS.NS',
     'CONCOR.NS', 'IRCTC.NS', 'TRENT.NS', 'TVSMOTOR.NS', 'JUBLFOOD.NS'
-    
-]    # more tickers can be added as needed
+]
 
-# ------------------------------
-# Fields to fetch from Yahoo Finance
-# ------------------------------
 fetch_fields = [
     "symbol", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
     "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",   
@@ -53,9 +43,6 @@ fetch_fields = [
     "sharesOutstanding", "floatShares", "trailingPE"
 ]
 
-# ------------------------------
-# Fetch company info
-# ------------------------------
 data = []
 for ticker in tickers:
     print(f"Fetching data for: {ticker}")
@@ -66,16 +53,10 @@ for ticker in tickers:
     except Exception as e:
         print(f"Error fetching {ticker}: {e}")
 
-# ------------------------------
-# Convert to DataFrame and rename column
-# ------------------------------
 df = pd.DataFrame(data)
 df.rename(columns={'symbol': 'Ticker'}, inplace=True)
 df.replace([numpy.nan, numpy.inf, -numpy.inf], None, inplace=True)
 
-# ------------------------------
-# Create SQL table if it does not exist
-# ------------------------------
 cursor.execute(f"""
 IF NOT EXISTS (
     SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}'
@@ -103,31 +84,22 @@ END
 """)
 conn.commit()
 
-# ------------------------------
-# Clear existing table data (optional)
-# ------------------------------
 cursor.execute(f"DELETE FROM {table_name}")
 conn.commit()
 
-# ------------------------------
-# Fields for SQL insertion (matches DataFrame)
-# ------------------------------
 insert_fields = [
     "Ticker", "longName", "sector", "industry", "fullTimeEmployees",
-    "marketCap", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",  # ⚡ Added
+    "marketCap", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
     "totalCash", "totalDebt", "52WeekChange",
     "sharesOutstanding", "floatShares", "trailingPE"
 ]
 
-# ------------------------------
-# Insert data into SQL Server
-# ------------------------------
 insert_query = f"""
 IF NOT EXISTS (SELECT 1 FROM {table_name} WHERE Ticker = ?)
 BEGIN
     INSERT INTO {table_name} (
         [Ticker], [longName], [sector], [industry], [fullTimeEmployees], [marketCap],
-        [totalRevenue], [grossMargins], [operatingMargins], [profitMargins],           -- ⚡ Added
+        [totalRevenue], [grossMargins], [operatingMargins], [profitMargins],
         [totalCash], [totalDebt], [52WeekChange],
         [sharesOutstanding], [floatShares], [trailingPE]
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -138,9 +110,6 @@ for _, row in df.iterrows():
     values = tuple(row[field] for field in insert_fields)
     cursor.execute(insert_query, values[0], *values)
 
-# ------------------------------
-# Commit and close
-# ------------------------------
 conn.commit()
 cursor.close()
 conn.close()

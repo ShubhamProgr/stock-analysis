@@ -26,7 +26,6 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
-# ✅ Database connection string (uses raw string for backslashes)
 conn_str = (
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -34,7 +33,6 @@ conn_str = (
     r"UID=sa;"
     r"PWD=a;"
 )
-# Absolute path to the Stock Analysis folder
 SCRIPT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Stock Analysis'))
 
 ticker_map = {
@@ -87,7 +85,6 @@ def company_page(company_name):
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
 
-        # --- 1. Company Info ---
         cursor.execute("""
             SELECT [longName], [sector], [marketCap], [profitMargins], [52WeekChange]
             FROM Company_Info
@@ -105,7 +102,6 @@ def company_page(company_name):
         else:
             company_data = None
 
-        # --- 2. Candlestick Data ---
         cursor.execute("""
             SELECT [Date], [Open], [High], [Low], [Close]
             FROM StockData
@@ -130,7 +126,6 @@ def company_page(company_name):
                 {"x": "2025-08-21", "o": 105, "h": 115, "l": 100, "c": 110},
             ]
 
-        # --- 3. Prediction vs Actual ---
         cursor.execute("""
             SELECT TOP 1 [Predicted_Closing_Price], [Actual_Closing_Price]
             FROM Prediction_vs_Actual
@@ -155,7 +150,6 @@ def company_page(company_name):
             "max_y": round(max_y, 2)
         }
 
-        # --- 4. Latest Prediction ---
         cursor.execute("""
             SELECT TOP 1 [Predicted_Closing_Price], [Prediction_Date]
             FROM Final_Analysis
@@ -196,15 +190,13 @@ def get_predictions():
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
 
-        # Get latest Prediction Date
         cursor.execute("SELECT MAX(Prediction_Date) FROM Final_Analysis")
         latest_date_row = cursor.fetchone()
 
         if latest_date_row:
-            latest_date = latest_date_row[0]  # datetime object
-            prediction_date = latest_date.strftime("%d %B %Y")  # Example: 05 August 2025
+            latest_date = latest_date_row[0]
+            prediction_date = latest_date.strftime("%d %B %Y")
 
-        # Fetch predictions for the most recent Prediction Date
         cursor.execute("""
             SELECT Ticker, Predicted_Closing_Price
             FROM Final_Analysis
@@ -233,7 +225,6 @@ def get_my_date():
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
 
-        # Get latest date from Prediction_vs_Actual table
         cursor.execute("SELECT MAX(Date) FROM Prediction_vs_Actual")
         latest_date_row = cursor.fetchone()
         latest_date = latest_date_row[0] if latest_date_row else None
@@ -247,7 +238,6 @@ def prediction_vs_actual():
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
 
-        # Get latest date from Prediction_vs_Actual table
         cursor.execute("SELECT MAX(Date) FROM Prediction_vs_Actual")
         latest_date_row = cursor.fetchone()
         latest_date = latest_date_row[0] if latest_date_row else None
@@ -255,7 +245,6 @@ def prediction_vs_actual():
         if not latest_date:
             return jsonify([])
 
-        # Get prediction vs actual values for the latest date
         cursor.execute("""
             SELECT Company, Ticker, Predicted_Closing_Price, Actual_Closing_Price 
             FROM Prediction_vs_Actual 
@@ -338,15 +327,11 @@ def run_stock_data():
         return "<h2>✅ Latest Stock Data Inserted.</h2>"
     except Exception as e:
         return f"<h2>❌ Error running Stock Data Daily: {e}</h2>"
-    [ ]
-# --- QUERY ---
 
-# --- Email setup ---
 EMAIL_SENDER = "sbahuguna2007@gmail.com"
 EMAIL_PASSWORD = "rgdf glsr mmxr bgeb"  
 EMAIL_RECEIVER = "sbahuguna2007@gmail.com"
 
-# --- /query route ---
 @app.route("/query", methods=["GET", "POST"])
 def query_page():
     results, columns, error, message = None, None, None, None
@@ -356,7 +341,6 @@ def query_page():
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
 
-        # --- Fetch existing scheduled queries for modal ---
         cursor.execute("""
             SELECT Id, Sender, Receiver, Query, Status, ScheduledTime 
             FROM ScheduledQueries 
@@ -379,7 +363,6 @@ def query_page():
             schedule_time = request.form.get("run_schedule_time")
             action = request.form.get("action")
 
-            # --- Schedule query ---
             if schedule_type != "now" and action == "schedule":
                 if not schedule_time:
                     error = "Schedule time is required."
@@ -388,7 +371,6 @@ def query_page():
                         run_at = datetime.strptime(schedule_time, "%Y-%m-%dT%H:%M")
                         job_id = str(uuid.uuid4())
 
-                        # Schedule APScheduler job
                         scheduler.add_job(
                             func=lambda q=query, job_id=job_id: run_scheduled_query(q, job_id),
                             trigger="date",
@@ -396,7 +378,6 @@ def query_page():
                             id=job_id
                         )
 
-                        # Insert into DB
                         cursor.execute("""
                             INSERT INTO ScheduledQueries (Id, Sender, Receiver, Query, Status, ScheduledTime)
                             VALUES (?, ?, ?, ?, ?, ?)
@@ -415,7 +396,6 @@ def query_page():
                     except Exception as e:
                         error = f"Error scheduling query: {e}"
 
-            # --- Run immediately ---
             else:
                 try:
                     cursor.execute(query)
@@ -454,14 +434,11 @@ def send_email(subject, body_html, attachment=None):
         msg["From"] = EMAIL_SENDER
         msg["To"] = EMAIL_RECEIVER
 
-        # Attach the HTML body
         msg.attach(MIMEText(body_html, "html"))
 
-        # Attach file if provided
         if attachment:
             msg.attach(attachment)
 
-        # Send via SMTP
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
@@ -469,14 +446,12 @@ def send_email(subject, body_html, attachment=None):
     except Exception as e:
         print(f"❌ Error sending email: {e}")
 
-# --- Run scheduled query and update DB ---
 def run_scheduled_query(query, job_id):
     try:
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
         cursor.execute(query)
 
-        # Handle SELECT queries
         if cursor.description:
             try:
                 rows = cursor.fetchall()
@@ -484,27 +459,22 @@ def run_scheduled_query(query, job_id):
                     columns = [col[0] for col in cursor.description]
                     df = pd.DataFrame.from_records(rows, columns=columns)
 
-                    # Save to Excel in memory
                     excel_buffer = BytesIO()
                     df.to_excel(excel_buffer, index=False)
                     excel_buffer.seek(0)
 
-                    # Attach Excel file
                     part = MIMEApplication(excel_buffer.read(), Name=f"Query_{job_id}.xlsx")
                     part['Content-Disposition'] = f'attachment; filename="Query_{job_id}.xlsx"'
 
-                    # Send email with attachment
                     send_email("Scheduled Query Results", "<p> Report </p>", attachment=part)
                 else:
                     send_email("Scheduled Query Results", "<p> Report </p>")
             except pyodbc.ProgrammingError:
                 send_email("Scheduled Query Results", "<p> Report </p>")
         else:
-            # Non-SELECT statements
             conn.commit()
             send_email("Scheduled Query Results", "<p> Report </p>")
 
-        # Update status
         cursor.execute("UPDATE ScheduledQueries SET Status = ? WHERE Id = ?", "Ran", job_id)
         conn.commit()
 
@@ -518,8 +488,6 @@ def run_scheduled_query(query, job_id):
 
     finally:
         conn.close()
-
-# --- Fetch scheduled queries ---
 
 @app.route("/get-scheduled-queries")
 def get_scheduled_queries():
@@ -541,7 +509,6 @@ def get_scheduled_queries():
         })
     return jsonify(data)
 
-# ---------- Single Ticker Per-Minute ----------
 @app.route("/api/live-price/<ticker>")
 def live_price(ticker):
     try:
@@ -568,7 +535,6 @@ def live_price(ticker):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-# ---------- Multiple Tickers Per-Minute ----------
 @app.route("/api/live-prices")
 def live_prices():
     tickers = request.args.get("tickers", "").split(",")
@@ -596,8 +562,6 @@ def live_prices():
 
     return jsonify(results)
 
-# --- KEY CHECKING LOGIC ---
-
 VALID_KEY = '217621'
 @app.route("/key",methods=["GET","POST"])
 def key_check():
@@ -610,6 +574,4 @@ def key_check():
     return render_template("key.html")
 
 if __name__ == '__main__':
-    #app.run(debug=True)
     app.run(host="0.0.0.0", port=5000, debug=True)
-

@@ -1,18 +1,12 @@
 import pandas as pd
 import re
 import pyodbc
-from transformers import BertTokenizer, BertForSequenceClassification, pipeline
 import math
+from transformers import BertTokenizer, BertForSequenceClassification, pipeline
 
-# --------------------
-# LOAD EXCEL
-# --------------------
 input_file = r"C:\Users\PC\Documents\News.xlsx"
 df = pd.read_excel(input_file)
 
-# --------------------
-# COMPANY → TICKER MAPPING (based on your aliases)
-# --------------------
 company_tickers = {
     "reliance": "RELIANCE.NS",
     "tcs": "TCS.NS",
@@ -64,49 +58,30 @@ company_tickers = {
     "power grid": "POWERGRID.NS"
 }
 
-# --------------------
-# ARTICLE COUNT PER COMPANY
-# --------------------
 article_counts = df.groupby("Company").size().to_dict()
 
-# Check if necessary columns exist
 required_columns = ["Company", "Content"]
 for col in required_columns:
     if col not in df.columns:
         raise ValueError(f"Column '{col}' not found in Excel!")
 
-# --------------------
-# GROUP CONTENT BY COMPANY
-# --------------------
 company_paragraphs = df.groupby("Company")["Content"].apply(lambda x: " ".join(x)).to_dict()
 
-# --------------------
-# CLEAN TEXT
-# --------------------
 cleaned_paragraphs = {}
 for company, text in company_paragraphs.items():
     text = re.sub(r'\s+', ' ', text)
     text = re.sub(r'[^\w\s]', '', text)
     cleaned_paragraphs[company] = text.strip()
 
-# --------------------
-# LOAD FINBERT
-# --------------------
 finbert_model = "yiyanghkust/finbert-tone"
 tokenizer = BertTokenizer.from_pretrained(finbert_model)
 model = BertForSequenceClassification.from_pretrained(finbert_model)
 sentiment_analyzer = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
-# --------------------
-# FUNCTION TO SPLIT TEXT INTO CHUNKS (~100 words each)
-# --------------------
 def chunk_text(text, words_per_chunk=100):
     words = text.split()
     return [" ".join(words[i:i+words_per_chunk]) for i in range(0, len(words), words_per_chunk)]
 
-# --------------------
-# ANALYZE SENTIMENT IN CHUNKS AND AGGREGATE
-# --------------------
 results = []
 
 for company, paragraph in cleaned_paragraphs.items():
@@ -127,15 +102,14 @@ for company, paragraph in cleaned_paragraphs.items():
     overall_score = cumulative_scores[overall_label] / len(chunks)
     
     results.append({
-    "Company": company,
-    "Ticker": company_tickers.get(company.lower(), None),
-    "ArticleCount": article_counts.get(company, 0),
-    "Paragraph": paragraph,
-    "Sentiment": overall_label,
-    "Score": overall_score
-})
+        "Company": company,
+        "Ticker": company_tickers.get(company.lower(), None),
+        "ArticleCount": article_counts.get(company, 0),
+        "Paragraph": paragraph,
+        "Sentiment": overall_label,
+        "Score": overall_score
+    })
 
-# ✅ Database connection string (uses raw string for backslashes)
 conn_str = (
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -144,11 +118,9 @@ conn_str = (
     r"PWD=a;"
 )
 
-# ✅ Connect to SQL Server
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
 
-# Create table if not exists
 cursor.execute("""
 IF NOT EXISTS (
     SELECT * FROM sysobjects WHERE name='Company_FinBERT_Sentiments' AND xtype='U'
@@ -164,21 +136,21 @@ CREATE TABLE Company_FinBERT_Sentiments (
 """)
 conn.commit()
 
-# Clear old data
 cursor.execute("DELETE FROM Company_FinBERT_Sentiments")
 conn.commit()
 
-# Insert fresh rows
 for row in results:
     cursor.execute("""
     INSERT INTO Company_FinBERT_Sentiments ([Company], [Ticker], [ArticleCount], [Paragraph], [Sentiment], [Score])
     VALUES (?, ?, ?, ?, ?, ?)
-""",row["Company"],
+""",
+    row["Company"],
     row["Ticker"],
     row["ArticleCount"],
     row["Paragraph"],
     row["Sentiment"],
-    row["Score"])
+    row["Score"]
+)
 
 conn.commit()
 cursor.close()

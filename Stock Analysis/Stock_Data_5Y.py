@@ -3,7 +3,6 @@ import pandas as pd
 import pyodbc
 import os
 
-# ✅ List of stock tickers
 tickers = [
     'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS',
     'KOTAKBANK.NS', 'HCLTECH.NS', 'LT.NS', 'ITC.NS', 'SBIN.NS',
@@ -24,11 +23,8 @@ tickers = [
     'TATAPOWER.NS', 'TORNTPHARM.NS', 'MCDOWELL-N.NS', 'VEDL.NS', 'ZOMATO.NS',
     'PETRONET.NS', 'PGHH.NS', 'POLYCAB.NS', 'ICICISENSX.NS', 'HAVELLS.NS',
     'CONCOR.NS', 'IRCTC.NS', 'TRENT.NS', 'TVSMOTOR.NS', 'JUBLFOOD.NS'
-    
-]    # more tickers can be added as needed
+]
 
-
-# ✅ Database connection string (uses raw string for backslashes)
 conn_str = (
     r"Driver={ODBC Driver 17 for SQL Server};"
     r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
@@ -37,11 +33,9 @@ conn_str = (
     r"PWD=a;"
 )
 
-# ✅ Connect to SQL Server
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
 
-# ✅ Create table if not exists (escape reserved keywords)
 cursor.execute("""
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='StockData' AND xtype='U')
     CREATE TABLE StockData (
@@ -57,21 +51,19 @@ cursor.execute("""
 """)
 conn.commit()
 
-# ✅ Fetch and insert stock data
 all_data = pd.DataFrame()
 
 for ticker in tickers:
     print(f"📥 Downloading data for {ticker}")
     try:
-        data = yf.download(ticker,period='5Y')
-        data.reset_index(inplace=True)  # Convert index to column
-        data['Ticker'] = ticker  # Add Ticker column
+        data = yf.download(ticker, period='5Y')
+        data.reset_index(inplace=True)
+        data['Ticker'] = ticker
         data.to_excel('all1.xlsx')
         data = pd.read_excel('all1.xlsx', skiprows=3)
         data.columns = ['Index', 'Date', 'Close', 'High', 'Low', 'Open', 'Volume', 'Ticker']
         data.to_excel('all.xlsx')
 
-        # Conversion to appropriate Data Types
         data['Open'] = pd.to_numeric(data['Open'], errors='coerce').fillna(0)
         data['High'] = pd.to_numeric(data['High'], errors='coerce').fillna(0)
         data['Low'] = pd.to_numeric(data['Low'], errors='coerce').fillna(0)
@@ -112,16 +104,14 @@ for ticker in tickers:
 cursor.close()
 conn.close()
 
-# ✅ Clean column headers
 if isinstance(all_data.columns, pd.MultiIndex):
     all_data.columns = [' '.join(col).strip() for col in all_data.columns.values]
 
 all_data.reset_index(drop=True, inplace=True)
 
-# ✅ Save to Excel in Documents folder
 excel_path = os.path.join(os.environ['USERPROFILE'], 'Documents', 'Stock_Data.xlsx')
 try:
     all_data.to_excel(excel_path, index=False)
     print(f"📁 Excel file saved at: {excel_path}")
 except Exception as e:
-    print(f"❌ Excel saving error: {e}") 
+    print(f"❌ Excel saving error: {e}")
