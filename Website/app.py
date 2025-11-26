@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response
 from datetime import datetime
 from flask_apscheduler import APScheduler
 from email.mime.multipart import MIMEMultipart
@@ -52,6 +52,7 @@ ticker_map = {
         'upl': 'UPL.NS', 'axisbank': 'AXISBANK.NS', 'shreecem': 'SHREECEM.NS',
         'tataconsum': 'TATACONSUM.NS', 'm&m': 'M&M.NS', 'hal': 'HAL.NS', 'dlf': 'DLF.NS'
     }
+
 my_date  = '01/01/2025'
 
 @app.route("/")
