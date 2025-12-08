@@ -1,16 +1,27 @@
+from dotenv import load_dotenv
+import os
 import yfinance as yf
 import pandas as pd
 import pyodbc
 import numpy
 
-conn_str = (
-    r"Driver={ODBC Driver 17 for SQL Server};"
-    r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
-    r"Database=Market_data;"
-    r"UID=sa;"
-    r"PWD=a;"
-)
+load_dotenv()
+
+MSSQL_SERVER = os.getenv("MSSQL_SERVER")
+MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
+MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
+MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
+MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
 table_name = "Company_Info"
+
+conn_str = (
+    f"DRIVER={{{MSSQL_DRIVER}}};"
+    f"SERVER={MSSQL_SERVER};"
+    f"DATABASE={MSSQL_DATABASE};"
+    f"UID={MSSQL_USERNAME};"
+    f"PWD={MSSQL_PASSWORD};"
+)
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
 
@@ -38,8 +49,8 @@ tickers = [
 
 fetch_fields = [
     "symbol", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
-    "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",   
-    "totalCash", "totalDebt", "52WeekChange", 
+    "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
+    "totalCash", "totalDebt", "52WeekChange",
     "sharesOutstanding", "floatShares", "trailingPE"
 ]
 
@@ -70,8 +81,8 @@ BEGIN
         [fullTimeEmployees] INT,
         [marketCap] BIGINT,
         [totalRevenue] BIGINT,
-        [grossMargins] FLOAT,           
-        [operatingMargins] FLOAT,        
+        [grossMargins] FLOAT,
+        [operatingMargins] FLOAT,
         [profitMargins] FLOAT,
         [totalCash] BIGINT,
         [totalDebt] BIGINT,
@@ -87,28 +98,23 @@ conn.commit()
 cursor.execute(f"DELETE FROM {table_name}")
 conn.commit()
 
-insert_fields = [
-    "Ticker", "longName", "sector", "industry", "fullTimeEmployees",
-    "marketCap", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
-    "totalCash", "totalDebt", "52WeekChange",
-    "sharesOutstanding", "floatShares", "trailingPE"
-]
-
 insert_query = f"""
-IF NOT EXISTS (SELECT 1 FROM {table_name} WHERE Ticker = ?)
-BEGIN
-    INSERT INTO {table_name} (
-        [Ticker], [longName], [sector], [industry], [fullTimeEmployees], [marketCap],
-        [totalRevenue], [grossMargins], [operatingMargins], [profitMargins],
-        [totalCash], [totalDebt], [52WeekChange],
-        [sharesOutstanding], [floatShares], [trailingPE]
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-END
+INSERT INTO {table_name} (
+    [Ticker], [longName], [sector], [industry], [fullTimeEmployees], [marketCap],
+    [totalRevenue], [grossMargins], [operatingMargins], [profitMargins],
+    [totalCash], [totalDebt], [52WeekChange],
+    [sharesOutstanding], [floatShares], [trailingPE]
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 for _, row in df.iterrows():
-    values = tuple(row[field] for field in insert_fields)
-    cursor.execute(insert_query, values[0], *values)
+    values = tuple(row[field] for field in [
+        "Ticker", "longName", "sector", "industry", "fullTimeEmployees",
+        "marketCap", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
+        "totalCash", "totalDebt", "52WeekChange",
+        "sharesOutstanding", "floatShares", "trailingPE"
+    ])
+    cursor.execute(insert_query, *values)
 
 conn.commit()
 cursor.close()

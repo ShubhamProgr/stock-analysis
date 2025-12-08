@@ -1,12 +1,15 @@
+from dotenv import load_dotenv
+import os
 import feedparser
 import pandas as pd
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta, timezone, time
+from datetime import datetime, timedelta, timezone
 import time
-import os
 import re
 
-output_file = r"C:\Users\PC\Documents\News.xlsx"
+load_dotenv()
+
+output_file = os.getenv("NEWS_FILE", r"C:\Users\PC\Documents\News.xlsx")
 
 company_aliases = {
     "reliance": ["reliance", "reliance industries", "ril"],
@@ -172,7 +175,7 @@ rss_feeds = {
     "Google News - ACC": r'https://news.google.com/rss/search?q="acc"%20OR%20"acc%20cement"&hl=en-IN&gl=IN&ceid=IN:en',
     "Google News - DMart": r'https://news.google.com/rss/search?q="dmart"%20OR%20"avenue%20supermarts"&hl=en-IN&gl=IN&ceid=IN:en',
     "Google News - Bandhan Bank": r'https://news.google.com/rss/search?q="bandhan%20bank"%20OR%20"bandhan"&hl=en-IN&gl=IN&ceid=IN:en',
-    "Google News - Biocon": r'https://news.google.com/rss/search?q="biocon"&hl=en-IN&gl=IN&ceid=IN:en', 
+    "Google News - Biocon": r'https://news.google.com/rss/search?q="biocon"&hl=en-IN&gl=IN&ceid=IN:en',
     "Google News - Cholamandalam": r'https://news.google.com/rss/search?q="cholamandalam"%20OR%20"chola%20finance"&hl=en-IN&gl=IN&ceid=IN:en',
     "Google News - Colgate": r'https://news.google.com/rss/search?q="colgate"%20OR%20"colpal"&hl=en-IN&gl=IN&ceid=IN:en',
     "Google News - GAIL": r'https://news.google.com/rss/search?q="gail"%20OR%20"gail%20india"&hl=en-IN&gl=IN&ceid=IN:en',
@@ -220,24 +223,30 @@ for source, url in rss_feeds.items():
         title = entry.get("title", "").strip()
         link = entry.get("link", "").strip()
         combined_text = title.lower()
+
         matched_companies = [
             company for company, aliases in company_aliases.items()
             if any(alias.lower() in combined_text for alias in aliases)
         ]
+
         if not matched_companies:
             continue
+
         cleaned_companies = []
         for company in matched_companies:
             if not any(company != other and company in other for other in matched_companies):
                 cleaned_companies.append(company)
         matched_companies = cleaned_companies
+
         try:
             pub_date_obj = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             pub_date_obj = pub_date_obj.astimezone(ist).replace(tzinfo=None)
         except:
             pub_date_obj = datetime.now(ist)
+
         if pub_date_obj < cutoff_date:
             continue
+
         for company in matched_companies:
             all_articles.append({
                 "Company": company.strip().lower(),
@@ -246,10 +255,11 @@ for source, url in rss_feeds.items():
                 "Source": source,
                 "Link": link
             })
+
     time.sleep(1)
 
 if os.path.exists(output_file):
-    existing_df =  pd.read_excel(output_file)
+    existing_df = pd.read_excel(output_file)
     if 'PublicationDate' not in existing_df.columns:
         existing_df['PublicationDate'] = pd.NaT
     existing_df['PublicationDate'] = pd.to_datetime(existing_df['PublicationDate'], errors='coerce')
@@ -258,11 +268,10 @@ else:
     existing_df = pd.DataFrame(columns=["Company", "Content", "PublicationDate", "Source", "Link"])
 
 new_df = pd.DataFrame(all_articles)
-
 combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+
 combined_df.drop_duplicates(subset=["Content", "Link"], inplace=True)
 combined_df.sort_values(by="PublicationDate", ascending=False, inplace=True)
-
 combined_df['PublicationDate'] = combined_df['PublicationDate'].dt.tz_localize(None)
 
 combined_df.to_excel(output_file, index=False)

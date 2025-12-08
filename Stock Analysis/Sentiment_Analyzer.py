@@ -1,10 +1,15 @@
+from dotenv import load_dotenv
+import os
 import pandas as pd
 import re
 import pyodbc
 import math
 from transformers import BertTokenizer, BertForSequenceClassification, pipeline
 
-input_file = r"C:\Users\PC\Documents\News.xlsx"
+load_dotenv()
+
+input_file = os.getenv("NEWS_FILE")
+
 df = pd.read_excel(input_file)
 
 company_tickers = {
@@ -87,20 +92,20 @@ results = []
 for company, paragraph in cleaned_paragraphs.items():
     if paragraph.strip() == "":
         continue
-    
+
     chunks = chunk_text(paragraph, words_per_chunk=100)
-    
+
     cumulative_scores = {"POSITIVE": 0, "NEGATIVE": 0, "NEUTRAL": 0}
-    
+
     for chunk in chunks:
         sentiment = sentiment_analyzer(chunk[:512])[0]
         label = sentiment['label'].upper()
         score = sentiment['score']
         cumulative_scores[label] += score
-    
+
     overall_label = max(cumulative_scores, key=cumulative_scores.get)
     overall_score = cumulative_scores[overall_label] / len(chunks)
-    
+
     results.append({
         "Company": company,
         "Ticker": company_tickers.get(company.lower(), None),
@@ -110,12 +115,18 @@ for company, paragraph in cleaned_paragraphs.items():
         "Score": overall_score
     })
 
+MSSQL_SERVER = os.getenv("MSSQL_SERVER")
+MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
+MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
+MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
+MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
 conn_str = (
-    r"Driver={ODBC Driver 17 for SQL Server};"
-    r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
-    r"Database=Market_data;"
-    r"UID=sa;"
-    r"PWD=a;"
+    f"DRIVER={{{MSSQL_DRIVER}}};"
+    f"SERVER={MSSQL_SERVER};"
+    f"DATABASE={MSSQL_DATABASE};"
+    f"UID={MSSQL_USERNAME};"
+    f"PWD={MSSQL_PASSWORD};"
 )
 
 conn = pyodbc.connect(conn_str)
@@ -141,9 +152,10 @@ conn.commit()
 
 for row in results:
     cursor.execute("""
-    INSERT INTO Company_FinBERT_Sentiments ([Company], [Ticker], [ArticleCount], [Paragraph], [Sentiment], [Score])
-    VALUES (?, ?, ?, ?, ?, ?)
-""",
+        INSERT INTO Company_FinBERT_Sentiments 
+        ([Company], [Ticker], [ArticleCount], [Paragraph], [Sentiment], [Score])
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
     row["Company"],
     row["Ticker"],
     row["ArticleCount"],

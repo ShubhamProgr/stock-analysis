@@ -1,14 +1,32 @@
+from dotenv import load_dotenv
+import os
 import pyodbc
 import pandas as pd
 import numpy as np
 import warnings
-from datetime import timedelta
+from datetime import timedelta, datetime, date, time
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from datetime import datetime, date, time
 
 warnings.filterwarnings("ignore")
+
+load_dotenv()
+
+MSSQL_SERVER = os.getenv("MSSQL_SERVER")
+MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
+MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
+MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
+MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
+conn_str = (
+    f"DRIVER={{{MSSQL_DRIVER}}};"
+    f"SERVER={MSSQL_SERVER};"
+    f"DATABASE={MSSQL_DATABASE};"
+    f"UID={MSSQL_USERNAME};"
+    f"PWD={MSSQL_PASSWORD};"
+)
+conn = pyodbc.connect(conn_str)
 
 ticker_to_company = {
     'RELIANCE.NS': 'reliance', 'TCS.NS': 'tcs', 'INFY.NS': 'infosys', 'HDFC.NS': 'hdfc bank',
@@ -27,14 +45,6 @@ ticker_to_company = {
     'UPL.NS': 'upl', 'AXISBANK.NS': 'axis bank', 'SHREECEM.NS': 'shree cement',
     'TATACONSUM.NS': 'tata consumer', 'M&M.NS': 'mahindra', 'HAL.NS': 'hal', 'DLF.NS': 'dlf'
 }
-
-conn = pyodbc.connect(
-    r"Driver={ODBC Driver 17 for SQL Server};"
-    r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
-    r"Database=Market_data;"
-    r"UID=sa;"
-    r"PWD=a;"
-)
 
 nse_holidays_2025 = {
     pd.Timestamp("2025-01-26"), pd.Timestamp("2025-03-14"), pd.Timestamp("2025-04-18"),
@@ -137,69 +147,76 @@ for ticker, company in ticker_to_company.items():
         continue
 
 final_df = pd.DataFrame(results)
-prediction_date = final_df.iloc[-1]['Prediction_Date'].strftime('%Y_%m_%d')
-output_path = fr'C:\Users\PC\Documents\Final_Analysis_{prediction_date}.xlsx'
-final_df.to_excel(output_path, index=False)
-print(f"✅ Final Analysis saved to {output_path}")
 
-table_name = 'Final_Analysis'
-create_table_sql = f"""
-IF NOT EXISTS (
-    SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}'
-)
-BEGIN
-    CREATE TABLE {table_name} (
-        Company VARCHAR(100),
-        Ticker VARCHAR(20),
-        Prediction_Date DATE,
-        Predicted_Closing_Price FLOAT,
-        Last_Close FLOAT,
-        Last_Close_Date DATE,
-        MAE FLOAT,
-        MSE FLOAT,
-        RMSE FLOAT,
-        R2_Score FLOAT,
-        Sentiment VARCHAR(50),
-        Sentiment_Score FLOAT
-    );
-END
-"""
-cursor = conn.cursor()
-cursor.execute(create_table_sql)
-conn.commit()
+if final_df.empty:
+    print("No results to save. Exiting.")
+else:
+    prediction_date = final_df.iloc[-1]['Prediction_Date']
+    if isinstance(prediction_date, pd.Timestamp):
+        prediction_date_str = prediction_date.strftime('%Y_%m_%d')
+    else:
+        prediction_date_str = pd.to_datetime(prediction_date).strftime('%Y_%m_%d')
 
-insert_sql = f"""
-IF NOT EXISTS (
-    SELECT 1 FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?
-)
-INSERT INTO {table_name} (
-    [Company], [Ticker], [Prediction_Date],
-    [Predicted_Closing_Price], [Last_Close], [Last_Close_Date],
-    [MAE], [MSE], [RMSE], [R2_Score], [Sentiment], [Sentiment_Score]
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-"""
+    output_path = fr'C:\Users\PC\Documents\Final_Analysis_{prediction_date_str}.xlsx'
+    final_df.to_excel(output_path, index=False)
+    print(f"✅ Final Analysis saved to {output_path}")
 
-for _, row in final_df.iterrows():
-    values = (
-        row['Ticker'],
-        row['Prediction_Date'],
-        row['Company'],
-        row['Ticker'],
-        row['Prediction_Date'].date(),
-        row['Predicted_Closing_Price'],
-        row['Last_Close'],
-        row['Last_Close_Date'].date(),
-        row['MAE'],
-        row['MSE'],
-        row['RMSE'],
-        row['R2_Score'],
-        row['Sentiment'],
-        row['Sentiment_Score']
+    table_name = 'Final_Analysis'
+    create_table_sql = f"""
+    IF NOT EXISTS (
+        SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}'
     )
-    conn.execute(insert_sql, values)
+    BEGIN
+        CREATE TABLE {table_name} (
+            Company VARCHAR(100),
+            Ticker VARCHAR(20),
+            Prediction_Date DATE,
+            Predicted_Closing_Price FLOAT,
+            Last_Close FLOAT,
+            Last_Close_Date DATE,
+            MAE FLOAT,
+            MSE FLOAT,
+            RMSE FLOAT,
+            R2_Score FLOAT,
+            Sentiment VARCHAR(50),
+            Sentiment_Score FLOAT
+        );
+    END
+    """
+    cursor = conn.cursor()
+    cursor.execute(create_table_sql)
+    conn.commit()
 
-conn.commit()
-cursor.close()
-conn.close()
-print(f"✅ Final Analysis inserted into SQL Server table {table_name}")
+    insert_sql = f"""
+    IF NOT EXISTS (
+        SELECT 1 FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?
+    )
+    INSERT INTO {table_name} (
+        [Company], [Ticker], [Prediction_Date],
+        [Predicted_Closing_Price], [Last_Close], [Last_Close_Date],
+        [MAE], [MSE], [RMSE], [R2_Score], [Sentiment], [Sentiment_Score]
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    for _, row in final_df.iterrows():
+        values = (
+            row['Company'],
+            row['Ticker'],
+            row['Prediction_Date'].date() if hasattr(row['Prediction_Date'], "date") else pd.to_datetime(row['Prediction_Date']).date(),
+            row['Predicted_Closing_Price'],
+            row['Last_Close'],
+            row['Last_Close_Date'].date() if hasattr(row['Last_Close_Date'], "date") else pd.to_datetime(row['Last_Close_Date']).date(),
+            row['MAE'],
+            row['MSE'],
+            row['RMSE'],
+            row['R2_Score'],
+            row['Sentiment'],
+            row['Sentiment_Score']
+        )
+        cursor.execute(insert_sql, row['Ticker'], values[2], *values)  # IF NOT EXISTS params first, then VALUES params
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print(f"✅ Final Analysis inserted into SQL Server table {table_name}")

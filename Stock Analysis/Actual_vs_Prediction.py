@@ -1,15 +1,16 @@
+from dotenv import load_dotenv
+import os
 import pyodbc
 
-conn_str = (
-    r"Driver={ODBC Driver 17 for SQL Server};"
-    r"Server=DESKTOP-UDR6P21\SQLEXPRESS;"
-    r"Database=Market_data;"
-    r"UID=sa;"
-    r"PWD=a;"
-)
-conn = pyodbc.connect(conn_str)
-cursor = conn.cursor()
-insert_query = """
+load_dotenv()
+
+MSSQL_SERVER = os.getenv("MSSQL_SERVER")
+MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
+MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
+MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
+MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
+INSERT_QUERY = """
 INSERT INTO Prediction_vs_Actual (
     [Company], 
     [Ticker], 
@@ -34,9 +35,33 @@ WHERE NOT EXISTS (
       AND Prediction_vs_Actual.[Date] = Final_Analysis.[Prediction_Date]
 )
 """
-cursor.execute(insert_query)
-conn.commit()
-cursor.close()
-conn.close()
+conn_str = (
+    f"DRIVER={{{MSSQL_DRIVER}}};"
+    f"SERVER={MSSQL_SERVER};"
+    f"DATABASE={MSSQL_DATABASE};"
+    f"UID={MSSQL_USERNAME};"
+    f"PWD={MSSQL_PASSWORD};"
+)
 
-print("✅ Prediction_vs_Actual updated without duplicates.")
+conn = None
+cursor = None
+try:
+    conn = pyodbc.connect(conn_str)
+    cursor = conn.cursor()
+    cursor.execute(INSERT_QUERY)
+    conn.commit()
+    print("✅ Prediction_vs_Actual updated without duplicates.")
+except Exception as e:
+    print("❌ Failed to update Prediction_vs_Actual:", e)
+    raise
+finally:
+    if cursor:
+        try:
+            cursor.close()
+        except:
+            pass
+    if conn:
+        try:
+            conn.close()
+        except:
+            pass
