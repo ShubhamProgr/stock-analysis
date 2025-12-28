@@ -10,6 +10,17 @@ MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
 MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
 MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
+CREATE_TABLE_QUERY = """
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Prediction_vs_Actual' AND xtype='U')
+CREATE TABLE Prediction_vs_Actual (
+    [Company] NVARCHAR(255),
+    [Ticker] NVARCHAR(50),
+    [Date] DATE,
+    [Predicted_Closing_Price] FLOAT,
+    [Actual_Closing_Price] FLOAT
+)
+"""
+
 INSERT_QUERY = """
 INSERT INTO Prediction_vs_Actual (
     [Company], 
@@ -48,11 +59,16 @@ cursor = None
 try:
     conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
+    
+    cursor.execute(CREATE_TABLE_QUERY)
+    conn.commit()
+    print("Table 'Prediction_vs_Actual' checked/created.")
+
     cursor.execute(INSERT_QUERY)
     conn.commit()
-    print("✅ Prediction_vs_Actual updated without duplicates.")
+    print("Prediction_vs_Actual updated without duplicates.")
 except Exception as e:
-    print("❌ Failed to update Prediction_vs_Actual:", e)
+    print("Failed to update Prediction_vs_Actual:", e)
     raise
 finally:
     if cursor:

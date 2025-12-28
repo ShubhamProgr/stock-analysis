@@ -66,11 +66,13 @@ all_data = pd.DataFrame()
 for ticker in tickers:
     print(f"📥 Downloading recent data for {ticker}")
     try:
-        data = yf.download(ticker, period='5d', auto_adjust=False)
+        data = yf.download(ticker, period='10d', auto_adjust=False)
+        
         if data.empty:
             print(f"⚠️ No data for {ticker}")
             continue
-
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
         data = data.reset_index()
         data['Ticker'] = ticker
 
@@ -87,7 +89,6 @@ for ticker in tickers:
                     INSERT INTO StockData (Ticker, [Date], [Open], [High], [Low], [Close], [Index], [Volume])
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                
                 row['Ticker'], row['Date'],
                 row['Ticker'], row['Date'],
                 float(row.get('Open', 0.0)),
@@ -100,6 +101,12 @@ for ticker in tickers:
             except Exception as e:
                 print(f"❌ Error inserting {ticker} {row.get('Date')}: {e}")
 
+        conn.commit()
+        all_data = pd.concat([all_data, data], ignore_index=True)
+        print(f"✅ Inserted data for {ticker}")
+
+    except Exception as e:
+        print(f"❌ Failed to fetch data for {ticker}: {e}")
         conn.commit()
         all_data = pd.concat([all_data, data], ignore_index=True)
         print(f"✅ Inserted data for {ticker}")

@@ -1,9 +1,9 @@
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 import feedparser
 import pandas as pd
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta, timezone
 import time
 import re
 
