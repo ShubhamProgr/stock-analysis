@@ -5,3 +5,4 @@ python-dotenv
 pandas
 yfinance
 gunicorn
+flask-apscheduler
