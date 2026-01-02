@@ -1,4 +1,3 @@
-from google import genai
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, request, redirect, url_for, make_response
 from datetime import datetime
@@ -8,15 +7,15 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 from io import BytesIO
 from pytz import timezone
+from typing import Optional
+from sqlalchemy import create_engine, text
 import subprocess
-import os
+import os 
 import json
 import uuid
 import smtplib
 import pandas as pd
 import time
-from typing import Optional
-from sqlalchemy import create_engine, text
 import yfinance as yf
 
 load_dotenv()
