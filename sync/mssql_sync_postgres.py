@@ -7,15 +7,7 @@ from dotenv import load_dotenv
 
 warnings.filterwarnings("ignore")
 
-# =====================
-# LOAD ENV
-# =====================
-
 load_dotenv()
-
-# =====================
-# CONNECTIONS
-# =====================
 
 mssql_conn = pyodbc.connect(
     f"DRIVER={{{os.getenv('MSSQL_DRIVER')}}};"
@@ -36,10 +28,6 @@ pg_engine = create_engine(
 
 BATCH_SIZE = 2000
 
-# =====================
-# TABLE CONFIG
-# =====================
-
 SNAPSHOT_TABLES = {
     "Company_FinBERT_Sentiments": ["Company"],
     "Company_Info": ["Ticker"],
@@ -52,10 +40,6 @@ STOCK_TABLE = {
     "symbol_col": "symbol",
     "date_col": "trade_date"
 }
-
-# =====================
-# SNAPSHOT UPSERT
-# =====================
 
 def upsert_snapshot(df, table, keys):
     cols = df.columns.tolist()
@@ -80,10 +64,6 @@ def upsert_snapshot(df, table, keys):
 
     with pg_engine.begin() as conn:
         conn.execute(text(sql), data)
-
-# =====================
-# SNAPSHOT DELETE SYNC
-# =====================
 
 def delete_removed_snapshot_rows(table, keys, df_mssql):
     temp = f"tmp_{table.lower()}"
@@ -111,10 +91,6 @@ def delete_removed_snapshot_rows(table, keys, df_mssql):
     with pg_engine.begin() as conn:
         conn.execute(text(sql))
 
-# =====================
-# SNAPSHOT TABLE SYNC
-# =====================
-
 def sync_snapshot_table(table, keys):
     print(f"\n Syncing {table}")
 
@@ -128,10 +104,6 @@ def sync_snapshot_table(table, keys):
     delete_removed_snapshot_rows(table, keys, df)
 
     print(f" Synced {len(df)} rows")
-
-# =====================
-# STOCKDATA INCREMENTAL
-# =====================
 
 def get_last_dates_pg():
     sql = f"""
@@ -196,10 +168,6 @@ def sync_stockdata():
     )
 
     print(f" Inserted {len(df_new)} new rows")
-
-# =====================
-# RUN SYNC
-# =====================
 
 sync_stockdata()
 
