@@ -48,15 +48,15 @@ cursor = conn.cursor()
 
 cursor.execute("""
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='StockData' AND xtype='U')
-    CREATE TABLE StockData (
-        [Ticker] NVARCHAR(50),
-        [Date] DATE,
-        [Open] FLOAT,
-        [High] FLOAT,
-        [Low] FLOAT,
-        [Close] FLOAT,
-        [Index] FLOAT,
-        [Volume] BIGINT
+        CREATE TABLE StockData (
+            [Ticker] NVARCHAR(50),
+            [Date] DATE,
+            [Open] FLOAT,
+            [High] FLOAT,
+            [Low] FLOAT,
+            [Close] FLOAT,
+            [Index] FLOAT,
+            [Volume] BIGINT
     )
 """)
 conn.commit()

@@ -1,13 +1,13 @@
 from dotenv import load_dotenv
+from datetime import timedelta, datetime, date, time
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import os
 import pyodbc
 import pandas as pd
 import numpy as np
 import warnings
-from datetime import timedelta, datetime, date, time
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 warnings.filterwarnings("ignore")
 
@@ -46,10 +46,22 @@ ticker_to_company = {
     'TATACONSUM.NS': 'tata consumer', 'M&M.NS': 'mahindra', 'HAL.NS': 'hal', 'DLF.NS': 'dlf'
 }
 
-nse_holidays_2025 = {
-    pd.Timestamp("2025-01-26"), pd.Timestamp("2025-03-14"), pd.Timestamp("2025-04-18"),
-    pd.Timestamp("2025-08-15"), pd.Timestamp("2025-10-02"), pd.Timestamp("2025-10-21"),
-    pd.Timestamp("2025-11-14"), pd.Timestamp("2025-12-25")
+nse_holidays_2026 = {
+    pd.Timestamp("2026-01-26"),  # Republic Day
+    pd.Timestamp("2026-03-03"),  # Holi
+    pd.Timestamp("2026-03-26"),  # Shri Ram Navami
+    pd.Timestamp("2026-03-31"),  # Shri Mahavir Jayanti
+    pd.Timestamp("2026-04-03"),  # Good Friday
+    pd.Timestamp("2026-04-14"),  # Dr. Baba Saheb Ambedkar Jayanti
+    pd.Timestamp("2026-05-01"),  # Maharashtra Day
+    pd.Timestamp("2026-05-28"),  # Bakri Id (Eid al-Adha)
+    pd.Timestamp("2026-06-26"),  # Muharram
+    pd.Timestamp("2026-09-14"),  # Ganesh Chaturthi
+    pd.Timestamp("2026-10-02"),  # Mahatma Gandhi Jayanti
+    pd.Timestamp("2026-10-20"),  # Dussehra
+    pd.Timestamp("2026-11-10"),  # Diwali-Balipratipada
+    pd.Timestamp("2026-11-24"),  # Prakash Gurpurb Sri Guru Nanak Dev
+    pd.Timestamp("2026-12-25")   # Christmas
 }
 
 def get_next_trading_day(input_date):
