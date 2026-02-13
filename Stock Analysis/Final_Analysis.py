@@ -47,26 +47,26 @@ ticker_to_company = {
 }
 
 nse_holidays_2026 = {
-    pd.Timestamp("2026-01-26"),  # Republic Day
-    pd.Timestamp("2026-03-03"),  # Holi
-    pd.Timestamp("2026-03-26"),  # Shri Ram Navami
-    pd.Timestamp("2026-03-31"),  # Shri Mahavir Jayanti
-    pd.Timestamp("2026-04-03"),  # Good Friday
-    pd.Timestamp("2026-04-14"),  # Dr. Baba Saheb Ambedkar Jayanti
-    pd.Timestamp("2026-05-01"),  # Maharashtra Day
-    pd.Timestamp("2026-05-28"),  # Bakri Id (Eid al-Adha)
-    pd.Timestamp("2026-06-26"),  # Muharram
-    pd.Timestamp("2026-09-14"),  # Ganesh Chaturthi
-    pd.Timestamp("2026-10-02"),  # Mahatma Gandhi Jayanti
-    pd.Timestamp("2026-10-20"),  # Dussehra
-    pd.Timestamp("2026-11-10"),  # Diwali-Balipratipada
-    pd.Timestamp("2026-11-24"),  # Prakash Gurpurb Sri Guru Nanak Dev
-    pd.Timestamp("2026-12-25")   # Christmas
+    pd.Timestamp("2026-01-26"),  
+    pd.Timestamp("2026-03-03"),  
+    pd.Timestamp("2026-03-26"),  
+    pd.Timestamp("2026-03-31"),  
+    pd.Timestamp("2026-04-03"),  
+    pd.Timestamp("2026-04-14"),  
+    pd.Timestamp("2026-05-01"),  
+    pd.Timestamp("2026-05-28"),  
+    pd.Timestamp("2026-06-26"),  
+    pd.Timestamp("2026-09-14"),  
+    pd.Timestamp("2026-10-02"),  
+    pd.Timestamp("2026-10-20"),  
+    pd.Timestamp("2026-11-10"),  
+    pd.Timestamp("2026-11-24"),  
+    pd.Timestamp("2026-12-25")   
 }
 
 def get_next_trading_day(input_date):
     next_day = input_date + timedelta(days=1)
-    while next_day.weekday() >= 5 or next_day in nse_holidays_2025:
+    while next_day.weekday() >= 5 or next_day in nse_holidays_2026:
         next_day += timedelta(days=1)
     return next_day
 

@@ -66,7 +66,7 @@ all_data = pd.DataFrame()
 for ticker in tickers:
     print(f"📥 Downloading recent data for {ticker}")
     try:
-        data = yf.download(ticker, period='10d', auto_adjust=False)
+        data = yf.download(ticker, period='3d', auto_adjust=False)
         
         if data.empty:
             print(f"⚠️ No data for {ticker}")
