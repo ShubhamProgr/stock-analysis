@@ -31,7 +31,7 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 SCRIPT_DIR = os.getenv("SCRIPT_DIR")
