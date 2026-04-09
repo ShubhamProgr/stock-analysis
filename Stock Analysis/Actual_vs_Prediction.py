@@ -6,8 +6,6 @@ load_dotenv()
 
 MSSQL_SERVER = os.getenv("MSSQL_SERVER")
 MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
-MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
 MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
 CREATE_TABLE_QUERY = """
@@ -50,8 +48,7 @@ conn_str = (
     f"DRIVER={{{MSSQL_DRIVER}}};"
     f"SERVER={MSSQL_SERVER};"
     f"DATABASE={MSSQL_DATABASE};"
-    f"UID={MSSQL_USERNAME};"
-    f"PWD={MSSQL_PASSWORD};"
+    f"Trusted_Connection=yes;"
 )
 
 conn = None
@@ -70,6 +67,7 @@ try:
 except Exception as e:
     print("Failed to update Prediction_vs_Actual:", e)
     raise
+
 finally:
     if cursor:
         try:

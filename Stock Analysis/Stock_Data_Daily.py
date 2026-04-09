@@ -3,13 +3,12 @@ import os
 import yfinance as yf
 import pandas as pd
 import pyodbc
+import time
 
 load_dotenv()
 
 MSSQL_SERVER = os.getenv("MSSQL_SERVER")
 MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
-MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
 MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
 excel_output_path = os.getenv("STOCK_DATA", os.path.join(os.environ.get("USERPROFILE",""), "Documents", "Stock_Data.xlsx"))
@@ -18,8 +17,7 @@ conn_str = (
     f"DRIVER={{{MSSQL_DRIVER}}};"
     f"SERVER={MSSQL_SERVER};"
     f"DATABASE={MSSQL_DATABASE};"
-    f"UID={MSSQL_USERNAME};"
-    f"PWD={MSSQL_PASSWORD};"
+    f"Trusted_Connection=yes;"
 )
 
 tickers = [
@@ -61,16 +59,44 @@ cursor.execute("""
 """)
 conn.commit()
 
+def download_with_retry(ticker, period='3d', max_retries=3, initial_wait=2):
+    """
+    Download stock data with exponential backoff retry logic.
+    
+    Args:
+        ticker: Stock ticker symbol
+        period: Time period for download (default: '3d')
+        max_retries: Maximum number of retry attempts (default: 3)
+        initial_wait: Initial wait time in seconds (default: 2)
+    
+    Returns:
+        DataFrame with stock data or None if all retries failed
+    """
+    for attempt in range(max_retries):
+        try:
+            data = yf.download(ticker, period=period, auto_adjust=False)
+            return data
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = initial_wait * (2 ** attempt)  # Exponential backoff
+                print(f"⏳ Retry {attempt + 1}/{max_retries - 1} for {ticker} after {wait_time}s (Error: {str(e)[:60]}...)")
+                time.sleep(wait_time)
+            else:
+                print(f"❌ Failed to fetch data for {ticker} after {max_retries} attempts: {e}")
+                return None
+
+
 all_data = pd.DataFrame()
 
 for ticker in tickers:
     print(f"📥 Downloading recent data for {ticker}")
+    data = download_with_retry(ticker, period='3d')
+    
+    if data is None or data.empty:
+        print(f"⚠️ No data for {ticker}")
+        continue
+    
     try:
-        data = yf.download(ticker, period='3d', auto_adjust=False)
-        
-        if data.empty:
-            print(f"⚠️ No data for {ticker}")
-            continue
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
         data = data.reset_index()
@@ -106,13 +132,8 @@ for ticker in tickers:
         print(f"✅ Inserted data for {ticker}")
 
     except Exception as e:
-        print(f"❌ Failed to fetch data for {ticker}: {e}")
+        print(f"❌ Error processing {ticker}: {e}")
         conn.commit()
-        all_data = pd.concat([all_data, data], ignore_index=True)
-        print(f"✅ Inserted data for {ticker}")
-
-    except Exception as e:
-        print(f"❌ Failed to fetch data for {ticker}: {e}")
 
 cursor.close()
 conn.close()

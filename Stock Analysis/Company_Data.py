@@ -9,8 +9,6 @@ load_dotenv()
 
 MSSQL_SERVER = os.getenv("MSSQL_SERVER")
 MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_USERNAME = os.getenv("MSSQL_USERNAME")
-MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD")
 MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
 table_name = "Company_Info"
@@ -19,8 +17,7 @@ conn_str = (
     f"DRIVER={{{MSSQL_DRIVER}}};"
     f"SERVER={MSSQL_SERVER};"
     f"DATABASE={MSSQL_DATABASE};"
-    f"UID={MSSQL_USERNAME};"
-    f"PWD={MSSQL_PASSWORD};"
+    f"Trusted_Connection=yes;"
 )
 conn = pyodbc.connect(conn_str)
 cursor = conn.cursor()
