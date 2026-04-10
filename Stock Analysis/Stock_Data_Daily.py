@@ -97,6 +97,11 @@ for ticker in tickers:
         continue
     
     try:
+        # Double-check that data is not None before processing
+        if data is None:
+            print(f"⚠️ No data retrieved for {ticker}")
+            continue
+            
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
         data = data.reset_index()
