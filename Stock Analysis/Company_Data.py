@@ -92,9 +92,7 @@ END
 """)
 conn.commit()
 
-cursor.execute(f"DELETE FROM {table_name}")
-conn.commit()
-
+delete_query = f"DELETE FROM {table_name} WHERE [Ticker] = ?"
 insert_query = f"""
 INSERT INTO {table_name} (
     [Ticker], [longName], [sector], [industry], [fullTimeEmployees], [marketCap],
@@ -105,12 +103,33 @@ INSERT INTO {table_name} (
 """
 
 for _, row in df.iterrows():
-    values = tuple(row[field] for field in [
-        "Ticker", "longName", "sector", "industry", "fullTimeEmployees",
-        "marketCap", "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
-        "totalCash", "totalDebt", "52WeekChange",
-        "sharesOutstanding", "floatShares", "trailingPE"
-    ])
+    ticker = row['Ticker']
+    
+    # Skip rows with NULL Ticker
+    if pd.isna(ticker):
+        print(f"⚠️ Skipping row with NULL Ticker")
+        continue
+    
+    cursor.execute(delete_query, ticker)
+    
+    values = (
+        row['Ticker'],
+        row['longName'] if pd.notna(row['longName']) else None,
+        row['sector'] if pd.notna(row['sector']) else None,
+        row['industry'] if pd.notna(row['industry']) else None,
+        int(row['fullTimeEmployees']) if pd.notna(row['fullTimeEmployees']) else None,
+        int(row['marketCap']) if pd.notna(row['marketCap']) else None,
+        int(row['totalRevenue']) if pd.notna(row['totalRevenue']) else None,
+        float(row['grossMargins']) if pd.notna(row['grossMargins']) else None,
+        float(row['operatingMargins']) if pd.notna(row['operatingMargins']) else None,
+        float(row['profitMargins']) if pd.notna(row['profitMargins']) else None,
+        int(row['totalCash']) if pd.notna(row['totalCash']) else None,
+        int(row['totalDebt']) if pd.notna(row['totalDebt']) else None,
+        float(row['52WeekChange']) if pd.notna(row['52WeekChange']) else None,
+        int(row['sharesOutstanding']) if pd.notna(row['sharesOutstanding']) else None,
+        int(row['floatShares']) if pd.notna(row['floatShares']) else None,
+        float(row['trailingPE']) if pd.notna(row['trailingPE']) else None
+    )
     cursor.execute(insert_query, *values)
 
 conn.commit()
