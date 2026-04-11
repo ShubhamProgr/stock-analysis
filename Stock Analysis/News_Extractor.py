@@ -9,7 +9,7 @@ import re
 
 load_dotenv()
 
-output_file = os.getenv("NEWS_FILE", r"C:\Users\PC\Documents\News.xlsx")
+output_file = os.getenv("NEWS_FILE")
 
 company_aliases = {
     "reliance": ["reliance", "reliance industries", "ril"],

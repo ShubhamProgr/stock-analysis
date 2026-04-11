@@ -166,7 +166,7 @@ else:
     else:
         prediction_date_str = pd.to_datetime(prediction_date).strftime('%Y_%m_%d')
 
-    output_path = fr'C:\Users\PC\Documents\Final_Analysis_{prediction_date_str}.xlsx'
+    output_path = os.path.expanduser(f'~/Documents/Final_Analysis_{prediction_date_str}.xlsx')
     final_df.to_excel(output_path, index=False)
     print(f"✅ Final Analysis saved to {output_path}")
 

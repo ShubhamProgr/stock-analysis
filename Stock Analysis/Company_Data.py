@@ -104,12 +104,9 @@ INSERT INTO {table_name} (
 
 for _, row in df.iterrows():
     ticker = row['Ticker']
-    
-    # Skip rows with NULL Ticker
     if pd.isna(ticker):
-        print(f"⚠️ Skipping row with NULL Ticker")
+        print(f"Skipping row with NULL Ticker")
         continue
-    
     cursor.execute(delete_query, ticker)
     
     values = (

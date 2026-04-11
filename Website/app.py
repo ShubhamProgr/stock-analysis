@@ -9,6 +9,7 @@ from io import BytesIO
 from pytz import timezone
 from typing import Optional
 from sqlalchemy import create_engine, text
+from urllib.parse import quote_plus
 import subprocess
 import os 
 import json
@@ -17,6 +18,10 @@ import smtplib
 import pandas as pd
 import time
 import yfinance as yf
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -31,7 +36,20 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# MSSQL Connection Setup
+MSSQL_SERVER = os.getenv("MSSQL_SERVER")
+MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
+MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
+conn_str = (
+    f"DRIVER={{{MSSQL_DRIVER}}};"
+    f"SERVER={MSSQL_SERVER};"
+    f"DATABASE={MSSQL_DATABASE};"
+    f"Trusted_Connection=yes;"
+)
+
+# SQLAlchemy connection using pyodbc
+DATABASE_URL = f"mssql+pyodbc:///?odbc_connect={quote_plus(conn_str)}"
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 SCRIPT_DIR = os.getenv("SCRIPT_DIR")
@@ -58,10 +76,16 @@ ticker_map = {
 
 @app.route("/")
 def index():
-    predictions, prediction_date = get_predictions()
-    company_list = list(ticker_map.keys())
-    my_date = get_my_date()
-    return render_template("index.html", predictions=predictions, prediction_date=prediction_date, my_date=my_date, company_list=company_list)
+    try:
+        logger.info("Loading index page")
+        predictions, prediction_date = get_predictions()
+        company_list = list(ticker_map.keys())
+        my_date = get_my_date()
+        logger.info(f"Index loaded successfully. Predictions: {len(predictions)}")
+        return render_template("index.html", predictions=predictions, prediction_date=prediction_date, my_date=my_date, company_list=company_list)
+    except Exception as e:
+        logger.error(f"Error loading index: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}", 500
 
 @app.route("/company")
 def company_redirect():
@@ -70,133 +94,158 @@ def company_redirect():
 
 @app.route("/company/<company_name>")
 def company_page(company_name):
-    company_name = company_name.lower()
-    ticker = ticker_map.get(company_name)
-    if not ticker:
-        return render_template("company_not_found.html", company_name=company_name)
+    try:
+        logger.info(f"Loading company page for: {company_name}")
+        company_name = company_name.lower()
+        ticker = ticker_map.get(company_name)
+        if not ticker:
+            logger.warning(f"Company not found: {company_name}")
+            return render_template("company_not_found.html", company_name=company_name)
 
-    df_info = pd.read_sql(text("""
-        SELECT "longName","sector","marketCap","profitMargins","52WeekChange"
-        FROM "Company_Info"
-        WHERE "Ticker"=:t
-    """), engine, params={"t": ticker})
+        df_info = pd.read_sql(text("""
+            SELECT [longName],[sector],[marketCap],[profitMargins],[52WeekChange]
+            FROM [Company_Info]
+            WHERE [Ticker]=:t
+        """), engine, params={"t": ticker})
 
-    company_data = None
-    if not df_info.empty:
-        r = df_info.iloc[0]
-        company_data = {
-            "longname": r["longName"],
-            "sector": r["sector"],
-            "marketcap": float(r["marketCap"]) if r["marketCap"] is not None else None,
-            "profitmargins": float(r["profitMargins"]) if r["profitMargins"] is not None else None,
-            "week52change": float(r["52WeekChange"]) if r["52WeekChange"] is not None else None
+        company_data = None
+        if not df_info.empty:
+            r = df_info.iloc[0]
+            company_data = {
+                "longname": r["longName"],
+                "sector": r["sector"],
+                "marketcap": float(r["marketCap"]) if r["marketCap"] is not None else None,
+                "profitmargins": float(r["profitMargins"]) if r["profitMargins"] is not None else None,
+                "week52change": float(r["52WeekChange"]) if r["52WeekChange"] is not None else None
+            }
+
+        df_stock = pd.read_sql(text("""
+            SELECT [Date] AS trade_date,[Open] AS open,[High] AS high,[Low] AS low,[Close] AS close
+            FROM [StockData]
+            WHERE [Ticker]=:t
+            ORDER BY [Date]
+        """), engine, params={"t": ticker})
+
+        candle_chart_data = [
+            {
+                "x": row.trade_date.strftime("%Y-%m-%d"),
+                "o": float(row.open),
+                "h": float(row.high),
+                "l": float(row.low),
+                "c": float(row.close)
+            }
+            for row in df_stock.itertuples()
+        ]
+
+        df_pva = pd.read_sql(text("""
+            SELECT TOP 1 [Predicted_Closing_Price],[Actual_Closing_Price]
+            FROM [Prediction_vs_Actual]
+            WHERE [Company]=:c
+            ORDER BY [Date] DESC
+        """), engine, params={"c": company_name})
+
+        if not df_pva.empty:
+            predicted_price = float(df_pva.iloc[0][0])
+            actual_price = float(df_pva.iloc[0][1])
+            min_y = min(predicted_price, actual_price) - 50
+            max_y = max(predicted_price, actual_price) + 50
+        else:
+            predicted_price = actual_price = 0
+            min_y, max_y = 0, 100
+
+        prediction_bar_data = {
+            "predicted": round(predicted_price, 2),
+            "actual": round(actual_price, 2),
+            "min_y": round(min_y, 2),
+            "max_y": round(max_y, 2)
         }
 
-    df_stock = pd.read_sql(text("""
-        SELECT "trade_date","open","high","low","close"
-        FROM "StockData"
-        WHERE "symbol"=:t
-        ORDER BY "trade_date"
-    """), engine, params={"t": ticker})
+        df_final = pd.read_sql(text("""
+            SELECT TOP 1 [Predicted_Closing_Price],[Prediction_Date]
+            FROM [Final_Analysis]
+            WHERE [Company]=:c
+            ORDER BY [Prediction_Date] DESC
+        """), engine, params={"c": company_name})
 
-    candle_chart_data = [
-        {
-            "x": row.trade_date.strftime("%Y-%m-%d"),
-            "o": float(row.open),
-            "h": float(row.high),
-            "l": float(row.low),
-            "c": float(row.close)
-        }
-        for row in df_stock.itertuples()
-    ]
+        latest_prediction = {"closing_price": "N/A", "date": "N/A"}
+        if not df_final.empty:
+            latest_prediction = {
+                "closing_price": round(float(df_final.iloc[0][0]), 2),
+                "date": df_final.iloc[0][1].strftime("%Y-%m-%d")
+            }
 
-    df_pva = pd.read_sql(text("""
-        SELECT "Predicted_Closing_Price","Actual_Closing_Price"
-        FROM "Prediction_vs_Actual"
-        WHERE "Company"=:c
-        ORDER BY "Date" DESC
-        LIMIT 1
-    """), engine, params={"c": company_name})
-
-    if not df_pva.empty:
-        predicted_price = float(df_pva.iloc[0][0])
-        actual_price = float(df_pva.iloc[0][1])
-        min_y = min(predicted_price, actual_price) - 50
-        max_y = max(predicted_price, actual_price) + 50
-    else:
-        predicted_price = actual_price = 0
-        min_y, max_y = 0, 100
-
-    prediction_bar_data = {
-        "predicted": round(predicted_price, 2),
-        "actual": round(actual_price, 2),
-        "min_y": round(min_y, 2),
-        "max_y": round(max_y, 2)
-    }
-
-    df_final = pd.read_sql(text("""
-        SELECT "Predicted_Closing_Price","Prediction_Date"
-        FROM "Final_Analysis"
-        WHERE "Company"=:c
-        ORDER BY "Prediction_Date" DESC
-        LIMIT 1
-    """), engine, params={"c": company_name})
-
-    latest_prediction = {"closing_price": "N/A", "date": "N/A"}
-    if not df_final.empty:
-        latest_prediction = {
-            "closing_price": round(float(df_final.iloc[0][0]), 2),
-            "date": df_final.iloc[0][1].strftime("%Y-%m-%d")
-        }
-
-    return render_template(
-        "company_info.html",
-        company_name=company_name.upper(),
-        company_data=company_data,
-        candle_chart_data=candle_chart_data,
-        prediction_bar_data=prediction_bar_data,
-        latest_prediction=latest_prediction
-    )
+        logger.info(f"Company page loaded successfully for: {company_name}")
+        return render_template(
+            "company_info.html",
+            company_name=company_name.upper(),
+            company_data=company_data,
+            candle_chart_data=candle_chart_data,
+            prediction_bar_data=prediction_bar_data,
+            latest_prediction=latest_prediction
+        )
+    except Exception as e:
+        logger.error(f"Error loading company page for {company_name}: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}", 500
 
 def get_predictions():
-    predictions = []
-    df_date = pd.read_sql('SELECT MAX("Prediction_Date") AS d FROM "Final_Analysis"', engine)
-    if df_date.empty or df_date.iloc[0]["d"] is None:
-        return predictions, ""
-    latest_date = df_date.iloc[0]["d"]
-    df = pd.read_sql(text("""
-        SELECT "Ticker","Predicted_Closing_Price"
-        FROM "Final_Analysis"
-        WHERE "Prediction_Date"=:d
-    """), engine, params={"d": latest_date})
-    for r in df.itertuples():
-        predictions.append({"ticker": r.Ticker, "price": r.Predicted_Closing_Price})
-    return predictions, latest_date.strftime("%d %B %Y")
+    try:
+        predictions = []
+        df_date = pd.read_sql('SELECT MAX([Prediction_Date]) AS d FROM [Final_Analysis]', engine)
+        if df_date.empty or df_date.iloc[0]["d"] is None:
+            logger.warning("No predictions found in Final_Analysis")
+            return predictions, ""
+        latest_date = df_date.iloc[0]["d"]
+        df = pd.read_sql(text("""
+            SELECT [Ticker],[Predicted_Closing_Price]
+            FROM [Final_Analysis]
+            WHERE [Prediction_Date]=:d
+        """), engine, params={"d": latest_date})
+        for r in df.itertuples():
+            predictions.append({"ticker": r.Ticker, "price": r.Predicted_Closing_Price})
+        logger.info(f"Retrieved {len(predictions)} predictions for date {latest_date}")
+        return predictions, latest_date.strftime("%d %B %Y")
+    except Exception as e:
+        logger.error(f"Error in get_predictions: {str(e)}", exc_info=True)
+        return [], ""
 
 def get_my_date():
-    df = pd.read_sql('SELECT MAX("Date") AS d FROM "Prediction_vs_Actual"', engine)
-    return df.iloc[0]["d"] if not df.empty else None
+    try:
+        df = pd.read_sql('SELECT MAX([Date]) AS d FROM [Prediction_vs_Actual]', engine)
+        result = df.iloc[0]["d"] if not df.empty else None
+        logger.info(f"Retrieved my_date: {result}")
+        return result
+    except Exception as e:
+        logger.warning(f"Prediction_vs_Actual table may not exist or is empty: {str(e)}")
+        return None
 
 @app.route('/prediction-vs-actual')
 def prediction_vs_actual():
-    df_date = pd.read_sql('SELECT MAX("Date") AS d FROM "Prediction_vs_Actual"', engine)
-    if df_date.empty or df_date.iloc[0]["d"] is None:
+    try:
+        logger.info("Loading prediction vs actual data")
+        df_date = pd.read_sql('SELECT MAX([Date]) AS d FROM [Prediction_vs_Actual]', engine)
+        if df_date.empty or df_date.iloc[0]["d"] is None:
+            logger.warning("No data found in Prediction_vs_Actual")
+            return jsonify([])
+        latest_date = df_date.iloc[0]["d"]
+        df = pd.read_sql(text("""
+            SELECT [Company],[Ticker],[Predicted_Closing_Price],[Actual_Closing_Price]
+            FROM [Prediction_vs_Actual]
+            WHERE [Date]=:d
+        """), engine, params={"d": latest_date})
+        result = [
+            {
+                "company": r.Company,
+                "ticker": r.Ticker,
+                "predicted": round(r.Predicted_Closing_Price, 2),
+                "actual": round(r.Actual_Closing_Price, 2)
+            }
+            for r in df.itertuples()
+        ]
+        logger.info(f"Retrieved {len(result)} prediction vs actual records")
+        return jsonify(result)
+    except Exception as e:
+        logger.warning(f"Prediction_vs_Actual table may not exist: {str(e)}")
         return jsonify([])
-    latest_date = df_date.iloc[0]["d"]
-    df = pd.read_sql(text("""
-        SELECT "Company","Ticker","Predicted_Closing_Price","Actual_Closing_Price"
-        FROM "Prediction_vs_Actual"
-        WHERE "Date"=:d
-    """), engine, params={"d": latest_date})
-    return jsonify([
-        {
-            "company": r.Company,
-            "ticker": r.Ticker,
-            "predicted": round(r.Predicted_Closing_Price, 2),
-            "actual": round(r.Actual_Closing_Price, 2)
-        }
-        for r in df.itertuples()
-    ])
 
 VALID_KEY = os.getenv("VALID_KEY", "217621")
 
@@ -215,11 +264,15 @@ def query_page():
     if request.method == "POST":
         q = request.form.get("query")
         try:
-            df = pd.read_sql(text(q), engine)
-            results = df.values.tolist()
-            columns = df.columns.tolist()
+            # Only allow SELECT queries for security
+            if q.strip().upper().startswith("SELECT"):
+                df = pd.read_sql(text(q), engine)
+                results = df.values.tolist()
+                columns = df.columns.tolist()
+            else:
+                error = "Only SELECT queries are allowed"
         except Exception as e:
-            error = str(e)
+            error = f"Query error: {str(e)}"
     return render_template("query.html", results=results, columns=columns, error=error)
 
 @app.route("/api/live-price/<ticker>")
