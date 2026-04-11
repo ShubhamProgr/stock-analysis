@@ -196,10 +196,9 @@ else:
     cursor.execute(create_table_sql)
     conn.commit()
 
+    delete_sql = f"DELETE FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?"
+    
     insert_sql = f"""
-    IF NOT EXISTS (
-        SELECT 1 FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?
-    )
     INSERT INTO {table_name} (
         [Company], [Ticker], [Prediction_Date],
         [Predicted_Closing_Price], [Last_Close], [Last_Close_Date],
@@ -209,10 +208,17 @@ else:
     """
 
     for _, row in final_df.iterrows():
+        ticker = row['Ticker']
+        prediction_date = row['Prediction_Date'].date() if hasattr(row['Prediction_Date'], "date") else pd.to_datetime(row['Prediction_Date']).date()
+        
+        # Delete existing data for this ticker-date combination
+        cursor.execute(delete_sql, ticker, prediction_date)
+        
+        # Insert fresh data
         values = (
             row['Company'],
-            row['Ticker'],
-            row['Prediction_Date'].date() if hasattr(row['Prediction_Date'], "date") else pd.to_datetime(row['Prediction_Date']).date(),
+            ticker,
+            prediction_date,
             row['Predicted_Closing_Price'],
             row['Last_Close'],
             row['Last_Close_Date'].date() if hasattr(row['Last_Close_Date'], "date") else pd.to_datetime(row['Last_Close_Date']).date(),
@@ -223,7 +229,7 @@ else:
             row['Sentiment'],
             row['Sentiment_Score']
         )
-        cursor.execute(insert_sql, row['Ticker'], values[2], *values)  # IF NOT EXISTS params first, then VALUES params
+        cursor.execute(insert_sql, *values)
 
     conn.commit()
     cursor.close()
