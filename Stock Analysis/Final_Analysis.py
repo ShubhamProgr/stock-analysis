@@ -26,7 +26,7 @@ conn_str = (
 conn = pyodbc.connect(conn_str)
 
 ticker_to_company = {
-    'RELIANCE.NS': 'reliance', 'TCS.NS': 'tcs', 'INFY.NS': 'infosys', 'HDFC.NS': 'hdfc bank',
+    'RELIANCE.NS': 'reliance', 'TCS.NS': 'tcs', 'INFY.NS': 'infosys', 'HDFCBANK.NS': 'hdfc bank',
     'ICICIBANK.NS': 'icici bank', 'KOTAKBANK.NS': 'kotak bank', 'HCLTECH.NS': 'hcl',
     'LT.NS': 'l&t', 'ITC.NS': 'itc', 'SBIN.NS': 'sbi', 'BHARTIARTL.NS': 'bharti airtel',
     'ASIANPAINT.NS': 'asian paints', 'BAJFINANCE.NS': 'bajaj finance', 'BAJAJFINSV.NS': 'bajaj finserv',
@@ -40,7 +40,24 @@ ticker_to_company = {
     'HDFCLIFE.NS': 'hdfc life', 'HINDALCO.NS': 'hindalco', 'INDUSINDBK.NS': 'indusind',
     'BAJAJ-AUTO.NS': 'bajaj auto', 'BRITANNIA.NS': 'britannia', 'SBILIFE.NS': 'sbi life',
     'UPL.NS': 'upl', 'AXISBANK.NS': 'axis bank', 'SHREECEM.NS': 'shree cement',
-    'TATACONSUM.NS': 'tata consumer', 'M&M.NS': 'mahindra', 'HAL.NS': 'hal', 'DLF.NS': 'dlf'
+    'TATACONSUM.NS': 'tata consumer', 'M&M.NS': 'mahindra', 'HAL.NS': 'hal', 'DLF.NS': 'dlf',
+    'LTIM.NS': 'ltim', 'ABB.NS': 'abb', 'ADANIGREEN.NS': 'adani green energy',
+    'ADANIPOWER.NS': 'adani power', 'ADANIPORTS.NS': 'adani ports', 'AMBUJACEM.NS': 'ambuja cements',
+    'BAJAJHLDNG.NS': 'bajaj holdings', 'BANKBARODA.NS': 'bank of baroda', 'BPCL.NS': 'bpcl',
+    'BOSCHLTD.NS': 'bosch', 'CANBK.NS': 'canara bank', 'ACC.NS': 'acc', 'DMART.NS': 'dmart',
+    'BANDHANBNK.NS': 'bandhan bank', 'BIOCON.NS': 'biocon', 'CHOLAFIN.NS': 'chola finance',
+    'COLPAL.NS': 'colgate', 'GAIL.NS': 'gail', 'GODREJCP.NS': 'godrej consumer',
+    'ICICIGI.NS': 'icici general', 'ICICIPRULI.NS': 'icici prudential', 'INDHOTEL.NS': 'indian hotels',
+    'INDUSTOWER.NS': 'indus towers', 'NAUKRI.NS': 'naukri', 'INDIGO.NS': 'indigo',
+    'LICI.NS': 'lici', 'MARICO.NS': 'marico', 'MPHASIS.NS': 'mphasis',
+    'MUTHOOTFIN.NS': 'muthoot finance', 'PAYTM.NS': 'paytm', 'PIIND.NS': 'pi industries',
+    'PIDILITIND.NS': 'pidilite', 'SBICARD.NS': 'sbi card', 'SRF.NS': 'srf',
+    'MOTHERSON.NS': 'motherson sumi', 'SIEMENS.NS': 'siemens', 'TATAPOWER.NS': 'tata power',
+    'TORNTPHARM.NS': 'torrent pharma', 'MCDOWELL-N.NS': 'mcdowell', 'VEDL.NS': 'vedanta',
+    'ZOMATO.NS': 'zomato', 'PETRONET.NS': 'petronet lgm', 'PGHH.NS': 'procter gamble',
+    'POLYCAB.NS': 'polycab', 'ICICISENSX.NS': 'icici securities', 'HAVELLS.NS': 'havells',
+    'CONCOR.NS': 'concor', 'IRCTC.NS': 'irctc', 'TRENT.NS': 'trent', 'TVSMOTOR.NS': 'tvs motor',
+    'JUBLFOOD.NS': 'jubilant foodworks'
 }
 
 nse_holidays_2026 = {
