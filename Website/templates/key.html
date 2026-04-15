@@ -2,55 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Enter Access Key</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACCESS PORTAL</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
   <style>
     body {
-      background-color: #121212;
-      color: #fff;
+      background-color: var(--bg-color);
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
     }
-    .key-card {
-      background: #1e1e1e;
-      border-radius: 12px;
-      padding: 30px;
-      width: 350px;
-      box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    .login-container {
+      background: var(--panel-bg);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 400px;
+      border: 1px solid var(--panel-border);
     }
-    .form-control {
-      background: #2b2b2b;
-      border: none;
+    .login-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .login-header h3 {
       color: #fff;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
     }
-    .form-control:focus {
-      background: #333;
-      border: 1px solid #0d6efd;
-      color: #fff;
-      box-shadow: none;
-    }
-    .alert-danger {
-      background-color: #b71c1c;
-      color: white;
-      border: none;
+    .login-header p {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
-  <div class="key-card">
-    <h3 class="text-center text-primary mb-4">🔑 Enter Access Key</h3>
+  <div class="login-container">
+    <div class="login-header">
+      <h3>SECURE ACCESS</h3>
+      <p>AUTHENTICATION REQUIRED</p>
+    </div>
+    
     {% if error %}
-      <div class="alert alert-danger text-center">{{ error }}</div>
-    {% endif %}
-    <form method="POST" action="{{ url_for('key_check') }}">
-      <div class="mb-3">
-        <label for="access_key" class="form-label">Access Key</label>
-        <input type="password" class="form-control" id="access_key" name="access_key" required>
+      <div class="mb-4 font-mono text-down p-3" style="background:#1f1616; border:1px solid #4a1c1c; border-radius:4px; font-size:0.85rem">
+        > ERROR: {{ error }}
       </div>
-      <button type="submit" class="btn btn-primary w-100">Submit</button>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('key_check') }}">
+      <div class="form-group mb-4">
+        <label for="key" class="form-label">ACCESS KEY</label>
+        <input type="password" name="key" id="key" class="form-control font-mono" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100 font-mono">AUTHORIZE</button>
     </form>
+    <div class="mt-4 text-center">
+      <a href="{{ url_for('index') }}" class="text-muted font-mono" style="font-size:0.75rem;">← RETURN TO DASHBOARD</a>
+    </div>
   </div>
 </body>
 </html>

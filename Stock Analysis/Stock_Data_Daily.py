@@ -97,7 +97,6 @@ for ticker in tickers:
         continue
     
     try:
-        # Double-check that data is not None before processing
         if data is None:
             print(f"⚠️ No data retrieved for {ticker}")
             continue

@@ -2,133 +2,154 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>{{ company_name }} - Info</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ company_data.longname }} - Stock Analysis</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
 
-<div class="container py-4">
+<nav class="navbar navbar-expand-lg px-4">
+  <a class="navbar-brand" href="{{ url_for('index') }}">Stock Analysis Portal</a>
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav ms-auto">
+      <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Dashboard</a></li>
+    </ul>
+  </div>
+</nav>
 
-  <div class="row mb-4">
-    <div class="col-md-4">
-      <div class="company-name-box">
-        <h2>{{ company_data.longname }}</h2>
+<div class="container-fluid mt-4 px-4 pb-5">
+  <div class="d-flex justify-content-between align-items-end mb-4">
+    <div class="company-name-box">
+      <div class="text-muted font-mono mb-1" style="font-size:0.8rem; letter-spacing:0.05em">TICKER VIEW</div>
+      <h1 class="mb-0">{{ company_data.longname }}</h1>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm font-mono">← BACK</a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="mini-box flex-column d-flex justify-content-center">
+        <h6>MARKET CAP</h6>
+        <p>₹ {{ "{:,.2f}".format(company_data.marketcap / 1e12) }}T</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="mini-box flex-column d-flex justify-content-center">
+        <h6>INDUSTRY</h6>
+        <p style="font-size:1.1rem; font-weight:500;" class="mt-1">{{ company_data.sector }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="mini-box flex-column d-flex justify-content-center">
+        <h6>PROFIT MARGIN</h6>
+        <p class="{{ 'text-up' if company_data.profitmargins > 0 else 'text-down' }}">{{ "{:.2%}".format(company_data.profitmargins) }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="mini-box flex-column d-flex justify-content-center">
+        <h6>52-WEEK CHG</h6>
+        <p class="{{ 'text-up' if company_data.week52change > 0 else 'text-down' }}">{{ "{:.2%}".format(company_data.week52change) }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-12 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title">CANDLESTICK PRICE HISTORY</h5>
+        </div>
+        <div class="card-body p-0">
+          <div id="candleChart" style="width:100%; height:450px;"></div>
+        </div>
       </div>
     </div>
 
-    <div class="col-md-8">
-      <div class="row g-3">
-        <div class="col-6">
-          <div class="mini-box">
-            <h6>Market Cap</h6>
-            <p>₹ {{ "{:,.2f}".format(company_data.marketcap / 1e12) }} Lakh Cr</p>
-          </div>
+    <div class="col-12 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title">ACTUAL VS PREDICTED TREND</h5>
         </div>
-
-        <div class="col-6">
-          <div class="mini-box">
-            <h6>Sector</h6>
-            <p>{{ company_data.sector }}</p>
-          </div>
-        </div>
-
-        <div class="col-6">
-          <div class="mini-box">
-            <h6>Profit Margins</h6>
-            <p>{{ "{:.2%}".format(company_data.profitmargins) }}</p>
-          </div>
-        </div>
-
-        <div class="col-6">
-          <div class="mini-box">
-            <h6>52 Week Change</h6>
-            <p>{{ "{:.2%}".format(company_data.week52change) }}</p>
-          </div>
+        <div class="card-body p-0">
+          <div id="predictionChart" style="width:100%; height:350px;"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="chart-container mb-4">
-    <div id="candleChart" style="width:100%; height:450px;"></div>
-  </div>
-
-  <div class="chart-container">
-    <div id="predictionChart" style="height:300px;"></div>
-  </div>
 </div>
 
 <script>
-  const candleData = {{ candle_chart_data | tojson }};
-  const xValues = candleData.map(d => d.x);
+  // Candlestick Chart (Plotly customized for Dark Theme)
+  const candleData = {{ candle_chart_data | tojson | safe if candle_chart_data else "[]" }};
+  if(candleData.length > 0) {
+    const xValues = candleData.map(d => d.x);
 
-  const traceCandle = {
-      x: xValues,
-      open: candleData.map(d => d.o),
-      high: candleData.map(d => d.h),
-      low: candleData.map(d => d.l),
-      close: candleData.map(d => d.c),
-      type: 'candlestick',
-      increasing: { line: { color: '#26a69a', width: 1.5 }, fillcolor: '#26a69a' },
-      decreasing: { line: { color: '#ef5350', width: 1.5 }, fillcolor: '#ef5350' },
-      whiskerwidth: 0.4,
-      hoverinfo: 'x+open+high+low+close',
-      showlegend: false
-  };
+    const traceCandle = {
+        x: xValues,
+        open: candleData.map(d => d.o),
+        high: candleData.map(d => d.h),
+        low: candleData.map(d => d.l),
+        close: candleData.map(d => d.c),
+        type: 'candlestick',
+        increasing: { line: { color: '#10b981', width: 2 }, fillcolor: '#10b981' },
+        decreasing: { line: { color: '#ef4444', width: 2 }, fillcolor: '#ef4444' },
+        hoverinfo: 'x+open+high+low+close',
+        showlegend: false,
+        xaxis: 'x',
+        yaxis: 'y'
+    };
 
-  const layout = {
-      plot_bgcolor: "#161b22",
-      paper_bgcolor: "#0d1117",
-      font: { color: "#c9d1d9" },
-      xaxis: {
-          title: "Date",
-          type: "date",
-          showgrid: true,
-          gridcolor: "#1e222d",
-          rangeslider: { visible: false }
-      },
-      yaxis: {
-          title: "Price (₹)",
-          showgrid: true,
-          gridcolor: "#1e222d"
-      },
-      dragmode: "pan",
-      hovermode: "x unified",
-      margin: { t: 20, b: 30, l: 50, r: 20 }
-  };
+    const layoutCandle = {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 20, r: 20, l: 50, b: 40 },
+        xaxis: {
+            gridcolor: '#232a35',
+            tickfont: { color: '#94a3b8', family: 'JetBrains Mono' },
+            rangeslider: { visible: false }
+        },
+        yaxis: {
+            gridcolor: '#232a35',
+            tickfont: { color: '#94a3b8', family: 'JetBrains Mono' }
+        },
+    };
 
-  const config = {
-      responsive: true,
-      displayModeBar: false,
-      scrollZoom: true,
-      doubleClick: "reset+autosize"
-  };
+    Plotly.newPlot('candleChart', [traceCandle], layoutCandle, {responsive: true});
+  }
 
-  Plotly.newPlot("candleChart", [traceCandle], layout, config);
+  // Prediction Line Chart (Plotly customized for Dark Theme)
+  const predData = {{ prediction_data | tojson | safe if prediction_data else "[]" }};
+  if (predData.length > 0) {
+    const dt = predData.map(d => d.Date);
+    const act = predData.map(d => d.Actual);
+    const pred = predData.map(d => d.Predicted);
 
-  const predictionData = {{ prediction_bar_data | tojson }};
+    const traceAct = {
+        x: dt, y: act, type: 'scatter', mode: 'lines',
+        name: 'ACTUAL', line: { color: '#94a3b8', width: 2 }
+    };
+    const tracePred = {
+        x: dt, y: pred, type: 'scatter', mode: 'lines',
+        name: 'PREDICTED', line: { color: '#3b82f6', width: 2 }
+    };
 
-  const traceBar = {
-      x: ['Predicted', 'Actual'],
-      y: [predictionData.predicted, predictionData.actual],
-      type: 'bar',
-      marker: { color: ['#58a6ff', '#f85149'] }
-  };
+    const layoutLine = {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: { t: 20, r: 20, l: 50, b: 40 },
+        legend: { font: { color: '#94a3b8', family: 'JetBrains Mono', size: 10 }, orientation: 'h', y: 1.1 },
+        xaxis: { gridcolor: '#232a35', tickfont: { color: '#94a3b8', family: 'JetBrains Mono' } },
+        yaxis: { gridcolor: '#232a35', tickfont: { color: '#94a3b8', family: 'JetBrains Mono' } },
+    };
 
-  const layoutBar = {
-      plot_bgcolor: '#161b22',
-      paper_bgcolor: '#0d1117',
-      font: { color: '#c9d1d9' },
-      yaxis: { title: 'Price (₹)', range: [predictionData.min_y, predictionData.max_y] }
-  };
-
-  Plotly.newPlot('predictionChart', [traceBar], layoutBar, {responsive: true});
-
-  window.currentCompanySymbol = "{{ company_name|lower }}";
-  
+    Plotly.newPlot('predictionChart', [traceAct, tracePred], layoutLine, {responsive: true});
+  }
 </script>
-
 </body>
 </html>

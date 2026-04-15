@@ -120,7 +120,7 @@ def company_page(company_name):
             }
 
         df_stock = pd.read_sql(text("""
-            SELECT [Date] AS trade_date,[Open] AS open,[High] AS high,[Low] AS low,[Close] AS close
+            SELECT [Date] AS trade_date,[Open] AS [open],[High] AS [high],[Low] AS [low],[Close] AS [close]
             FROM [StockData]
             WHERE [Ticker]=:t
             ORDER BY [Date]
@@ -145,8 +145,8 @@ def company_page(company_name):
         """), engine, params={"c": company_name})
 
         if not df_pva.empty:
-            predicted_price = float(df_pva.iloc[0][0])
-            actual_price = float(df_pva.iloc[0][1])
+            predicted_price = float(df_pva.iloc[0]['Predicted_Closing_Price'])
+            actual_price = float(df_pva.iloc[0]['Actual_Closing_Price'])
             min_y = min(predicted_price, actual_price) - 50
             max_y = max(predicted_price, actual_price) + 50
         else:
@@ -170,8 +170,8 @@ def company_page(company_name):
         latest_prediction = {"closing_price": "N/A", "date": "N/A"}
         if not df_final.empty:
             latest_prediction = {
-                "closing_price": round(float(df_final.iloc[0][0]), 2),
-                "date": df_final.iloc[0][1].strftime("%Y-%m-%d")
+                "closing_price": round(float(df_final.iloc[0]['Predicted_Closing_Price']), 2),
+                "date": df_final.iloc[0]['Prediction_Date'].strftime("%Y-%m-%d")
             }
 
         logger.info(f"Company page loaded successfully for: {company_name}")
