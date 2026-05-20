@@ -6,3 +6,4 @@ pandas
 yfinance
 gunicorn
 flask-apscheduler
+psycopg2-binary
