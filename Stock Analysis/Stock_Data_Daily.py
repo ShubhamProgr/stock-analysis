@@ -90,7 +90,7 @@ all_data = pd.DataFrame()
 
 for ticker in tickers:
     print(f"📥 Downloading recent data for {ticker}")
-    data = download_with_retry(ticker, period='3d')
+    data = download_with_retry(ticker, period='10d')
     
     if data is None or data.empty:
         print(f"⚠️ No data for {ticker}")

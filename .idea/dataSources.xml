@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="@localhost" uuid="50170b9f-bb3b-403b-bc79-d20b3d7cb76a">
-      <driver-ref>sqlserver.ms</driver-ref>
+    <data-source source="LOCAL" name="postgres@db.phejdfptmbtbwukocmrp.supabase.co" uuid="88c2c91d-c759-4b8a-a705-77ac9d303ec4">
+      <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
-      <jdbc-driver>com.microsoft.sqlserver.jdbc.SQLServerDriver</jdbc-driver>
-      <jdbc-url>jdbc:sqlserver://localhost\SQLEXPRESS</jdbc-url>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://db.phejdfptmbtbwukocmrp.supabase.co:5432/postgres</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
-      <driver-properties>
-        <property name="trustServerCertificate" value="true" />
-      </driver-properties>
     </data-source>
   </component>
 </project>
