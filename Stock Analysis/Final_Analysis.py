@@ -185,7 +185,7 @@ else:
 
     output_path = os.path.expanduser(f'~/Documents/Final_Analysis_{prediction_date_str}.xlsx')
     final_df.to_excel(output_path, index=False)
-    print(f"✅ Final Analysis saved to {output_path}")
+    print(f"Final Analysis saved to {output_path}")
 
     table_name = 'Final_Analysis'
     create_table_sql = f"""
@@ -251,4 +251,4 @@ else:
     conn.commit()
     cursor.close()
     conn.close()
-    print(f"✅ Final Analysis inserted into SQL Server table {table_name}")
+    print(f"Final Analysis inserted into SQL Server table {table_name}")

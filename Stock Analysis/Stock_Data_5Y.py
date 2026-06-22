@@ -78,27 +78,27 @@ def download_with_retry(ticker, max_retries=3, initial_wait=2):
         except Exception as e:
             if attempt < max_retries - 1:
                 wait_time = initial_wait * (2 ** attempt)  # Exponential backoff
-                print(f"⏳ Retry {attempt + 1}/{max_retries - 1} for {ticker} after {wait_time}s (Error: {str(e)[:60]}...)")
+                print(f" Retry {attempt + 1}/{max_retries - 1} for {ticker} after {wait_time}s (Error: {str(e)[:60]}...)")
                 time.sleep(wait_time)
             else:
-                print(f"❌ Failed to fetch data for {ticker} after {max_retries} attempts: {e}")
+                print(f" Failed to fetch data for {ticker} after {max_retries} attempts: {e}")
                 return None
 
 
 all_data = pd.DataFrame()
 
 for ticker in tickers:
-    print(f"📥 Downloading recent data for {ticker}")
+    print(f" Downloading recent data for {ticker}")
     data = download_with_retry(ticker)
     
     if data is None or data.empty:
-        print(f"⚠️ No data for {ticker}")
+        print(f" No data for {ticker}")
         continue
     
     try:
         # Double-check that data is not None before processing
         if data is None:
-            print(f"⚠️ No data retrieved for {ticker}")
+            print(f" No data retrieved for {ticker}")
             continue
             
         if isinstance(data.columns, pd.MultiIndex):
@@ -129,14 +129,14 @@ for ticker in tickers:
                 int(row.get('Volume', 0))
                 )
             except Exception as e:
-                print(f"❌ Error inserting {ticker} {row.get('Date')}: {e}")
+                print(f" Error inserting {ticker} {row.get('Date')}: {e}")
 
         conn.commit()
         all_data = pd.concat([all_data, data], ignore_index=True)
-        print(f"✅ Inserted data for {ticker}")
+        print(f" Inserted data for {ticker}")
 
     except Exception as e:
-        print(f"❌ Error processing {ticker}: {e}")
+        print(f" Error processing {ticker}: {e}")
         conn.commit()
 
 cursor.close()
@@ -149,6 +149,6 @@ all_data.reset_index(drop=True, inplace=True)
 
 try:
     all_data.to_excel(excel_output_path, index=False)
-    print(f"📁 Excel file saved at: {excel_output_path}")
+    print(f" Excel file saved at: {excel_output_path}")
 except Exception as e:
-    print(f"❌ Excel saving error: {e}")
+    print(f" Excel saving error: {e}")

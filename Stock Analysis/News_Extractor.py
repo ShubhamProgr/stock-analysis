@@ -275,4 +275,4 @@ combined_df.sort_values(by="PublicationDate", ascending=False, inplace=True)
 combined_df['PublicationDate'] = combined_df['PublicationDate'].dt.tz_localize(None)
 
 combined_df.to_excel(output_file, index=False)
-print(f"✅ Saved {len(combined_df)} filtered articles to '{output_file}'.")
+print(f"Saved {len(combined_df)} filtered articles to '{output_file}'.")

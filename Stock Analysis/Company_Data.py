@@ -132,4 +132,4 @@ for _, row in df.iterrows():
 conn.commit()
 cursor.close()
 conn.close()
-print("✅ Data inserted into SQL Server successfully.")
+print("Data inserted into SQL Server successfully.")

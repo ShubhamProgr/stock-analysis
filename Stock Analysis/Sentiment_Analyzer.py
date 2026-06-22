@@ -150,7 +150,7 @@ def analyze_sentiment(chunks, sentiment_analyzer):
             score = sentiment['score']
             cumulative_scores[label] += score
         except Exception as e:
-            print(f"⚠️ Error analyzing chunk: {str(e)[:60]}")
+            print(f" Error analyzing chunk: {str(e)[:60]}")
             continue
     
     # Calculate overall sentiment
@@ -166,16 +166,16 @@ def analyze_sentiment(chunks, sentiment_analyzer):
 # ==================== Main Process ====================
 try:
     # Load data
-    print("📂 Loading Excel file...")
+    print(" Loading Excel file...")
     df = pd.read_excel(input_file)
     
     # Validate columns
     required_columns = ["Company", "Content"]
     for col in required_columns:
         if col not in df.columns:
-            raise ValueError(f"❌ Column '{col}' not found in Excel!")
+            raise ValueError(f" Column '{col}' not found in Excel!")
     
-    print(f"✅ Loaded {len(df)} rows from Excel\n")
+    print(f" Loaded {len(df)} rows from Excel\n")
     
     # Count articles per company
     article_counts = df.groupby("Company").size().to_dict()
@@ -188,33 +188,33 @@ try:
         cleaned_paragraphs[company] = clean_text(text)
     
     # Load sentiment model
-    print("🤖 Loading FinBERT sentiment model...")
+    print(" Loading FinBERT sentiment model...")
     finbert_model = "yiyanghkust/finbert-tone"
     tokenizer = BertTokenizer.from_pretrained(finbert_model)
     model = BertForSequenceClassification.from_pretrained(finbert_model)
     sentiment_analyzer = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
-    print("✅ Model loaded\n")
+    print(" Model loaded\n")
     
     # Analyze sentiment for each company
-    print("📊 Analyzing sentiments...")
+    print(" Analyzing sentiments...")
     results = []
     missing_tickers = []
     
     for company, paragraph in cleaned_paragraphs.items():
         if not paragraph.strip():
-            print(f"⚠️ Skipping empty content for {company}")
+            print(f" Skipping empty content for {company}")
             continue
         
         # Get ticker
         ticker = get_ticker(company)
         if ticker is None:
             missing_tickers.append(company)
-            print(f"❌ No ticker mapping for: '{company}'")
+            print(f" No ticker mapping for: '{company}'")
         
         # Chunk and analyze
         chunks = chunk_text(paragraph, words_per_chunk=100)
         if not chunks:
-            print(f"⚠️ No valid chunks for {company}")
+            print(f" No valid chunks for {company}")
             continue
         
         overall_label, overall_score = analyze_sentiment(chunks, sentiment_analyzer)
@@ -228,16 +228,16 @@ try:
             "Score": round(overall_score, 4)
         })
         
-        print(f"✅ {company}: {overall_label} (Score: {overall_score:.4f})")
+        print(f" {company}: {overall_label} (Score: {overall_score:.4f})")
     
     # Export to Excel
-    print(f"\n📁 Saving to Excel...")
+    print(f"\n Saving to Excel...")
     results_df = pd.DataFrame(results)
     results_df.to_excel(SENTIMENT_OUTPUT_FILE, index=False, engine='openpyxl')
-    print(f"✅ Excel saved: {SENTIMENT_OUTPUT_FILE} ({len(results)} rows)")
+    print(f" Excel saved: {SENTIMENT_OUTPUT_FILE} ({len(results)} rows)")
     
     # Save to SQL Server
-    print(f"\n🗄️ Syncing to SQL Server...")
+    print(f"\n Syncing to SQL Server...")
     conn_str = (
         f"DRIVER={{{MSSQL_DRIVER}}};"
         f"SERVER={MSSQL_SERVER};"
@@ -286,24 +286,24 @@ try:
     conn.commit()
     cursor.close()
     conn.close()
-    print(f"✅ SQL Server synced: {len(results)} rows")
+    print(f" SQL Server synced: {len(results)} rows")
     
     # Summary
     print("\n" + "="*70)
-    print("📋 SUMMARY")
+    print(" SUMMARY")
     print("="*70)
-    print(f"✅ Total companies processed: {len(results)}")
-    print(f"❌ Companies with missing tickers: {len(missing_tickers)}")
+    print(f" Total companies processed: {len(results)}")
+    print(f" Companies with missing tickers: {len(missing_tickers)}")
     
     if missing_tickers:
-        print(f"\n⚠️ Missing ticker mappings for:")
+        print(f"\n Missing ticker mappings for:")
         for company in missing_tickers:
             print(f"   - {company}")
     
-    print(f"\n✅ Sentiment analysis complete!")
+    print(f"\n Sentiment analysis complete!")
     print("="*70)
 
 except Exception as e:
-    print(f"\n❌ ERROR: {str(e)}")
+    print(f"\n ERROR: {str(e)}")
     import traceback
     traceback.print_exc()
