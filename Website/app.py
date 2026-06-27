@@ -18,6 +18,7 @@ import pandas as pd
 import time
 import yfinance as yf
 import logging
+import threading
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -80,6 +81,37 @@ ticker_map = {
     'upl': 'UPL.NS', 'axisbank': 'AXISBANK.NS', 'shreecem': 'SHREECEM.NS',
     'tataconsum': 'TATACONSUM.NS', 'm&m': 'M&M.NS', 'hal': 'HAL.NS', 'dlf': 'DLF.NS'
 }
+
+def execute_script_in_background(script_name):
+    try:
+        logger.info(f"Starting background script: {script_name}")
+        script_path = os.path.join(SCRIPT_DIR, script_name)
+        subprocess.run(["python", script_path], check=True)
+        logger.info(f"Background script {script_name} finished successfully!")
+    except Exception as e:
+        logger.error(f"Script {script_name} failed: {str(e)}")
+
+@app.route('/run_program', methods=['POST'])
+def run_program():
+    data = request.get_json()
+    program_id = data.get('program')
+    
+    script_mapping = {
+        'prediction': 'Actual_vs_Prediction.py',
+        'final': 'Final_Analysis.py',
+        'news': 'News_Extractor.py',
+        'sentiment': 'Sentiment_Analyzer.py',
+        'stockdata': 'Stock_Data_Daily.py'
+    }
+    
+    target_script = script_mapping.get(program_id)
+    
+    if target_script:
+        thread = threading.Thread(target=execute_script_in_background, args=(target_script,))
+        thread.start()
+        return jsonify({"status": "started", "message": f"{target_script} is running."})
+    else:
+        return jsonify({"status": "error", "message": "Unknown program ID"}), 400
 
 @app.route("/")
 def index():
