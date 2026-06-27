@@ -9,7 +9,6 @@ from io import BytesIO
 from pytz import timezone
 from typing import Optional
 from sqlalchemy import create_engine, text
-from urllib.parse import quote_plus
 import subprocess
 import os 
 import json
@@ -27,6 +26,27 @@ load_dotenv()
 
 app = Flask(__name__)
 
+
+def build_database_url():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    host = os.getenv("SUPABASE_DB_HOST")
+    port = os.getenv("SUPABASE_DB_PORT", "5432")
+    database = os.getenv("SUPABASE_DB_NAME", "postgres")
+    user = os.getenv("SUPABASE_DB_USER", "postgres")
+    password = os.getenv("SUPABASE_DB_PASSWORD")
+    sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+
+    if not host or not password:
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_* variables in .env")
+
+    return (
+        f"postgresql+psycopg2://{user}:{password}"
+        f"@{host}:{port}/{database}?sslmode={sslmode}"
+    )
+
 class Config:
     SCHEDULER_API_ENABLED = True
     SCHEDULER_TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Asia/Kolkata")
@@ -36,20 +56,7 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.start()
 
-# MSSQL Connection Setup
-MSSQL_SERVER = os.getenv("MSSQL_SERVER")
-MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
-
-conn_str = (
-    f"DRIVER={{{MSSQL_DRIVER}}};"
-    f"SERVER={MSSQL_SERVER};"
-    f"DATABASE={MSSQL_DATABASE};"
-    f"Trusted_Connection=yes;"
-)
-
-# SQLAlchemy connection using pyodbc
-DATABASE_URL = f"mssql+pyodbc:///?odbc_connect={quote_plus(conn_str)}"
+DATABASE_URL = build_database_url()
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 SCRIPT_DIR = os.getenv("SCRIPT_DIR")
@@ -103,9 +110,9 @@ def company_page(company_name):
             return render_template("company_not_found.html", company_name=company_name)
 
         df_info = pd.read_sql(text("""
-            SELECT [longName],[sector],[marketCap],[profitMargins],[52WeekChange]
-            FROM [Company_Info]
-            WHERE [Ticker]=:t
+            SELECT "longName","sector","marketCap","profitMargins","52WeekChange"
+            FROM company_info
+            WHERE "Ticker" = :t
         """), engine, params={"t": ticker})
 
         company_data = None
@@ -120,10 +127,10 @@ def company_page(company_name):
             }
 
         df_stock = pd.read_sql(text("""
-            SELECT [Date] AS trade_date,[Open] AS [open],[High] AS [high],[Low] AS [low],[Close] AS [close]
-            FROM [StockData]
-            WHERE [Ticker]=:t
-            ORDER BY [Date]
+            SELECT "Date" AS trade_date,"Open" AS open,"High" AS high,"Low" AS low,"Close" AS close
+            FROM stock_data
+            WHERE "Ticker" = :t
+            ORDER BY "Date"
         """), engine, params={"t": ticker})
 
         candle_chart_data = [
@@ -138,10 +145,11 @@ def company_page(company_name):
         ]
 
         df_pva = pd.read_sql(text("""
-            SELECT TOP 1 [Predicted_Closing_Price],[Actual_Closing_Price]
-            FROM [Prediction_vs_Actual]
-            WHERE [Company]=:c
-            ORDER BY [Date] DESC
+            SELECT "Predicted_Closing_Price","Actual_Closing_Price"
+            FROM prediction_vs_actual
+            WHERE "Company" = :c
+            ORDER BY "Date" DESC
+            LIMIT 1
         """), engine, params={"c": company_name})
 
         if not df_pva.empty:
@@ -161,10 +169,11 @@ def company_page(company_name):
         }
 
         df_final = pd.read_sql(text("""
-            SELECT TOP 1 [Predicted_Closing_Price],[Prediction_Date]
-            FROM [Final_Analysis]
-            WHERE [Company]=:c
-            ORDER BY [Prediction_Date] DESC
+            SELECT "Predicted_Closing_Price","Prediction_Date"
+            FROM final_analysis
+            WHERE "Company" = :c
+            ORDER BY "Prediction_Date" DESC
+            LIMIT 1
         """), engine, params={"c": company_name})
 
         latest_prediction = {"closing_price": "N/A", "date": "N/A"}
@@ -190,15 +199,15 @@ def company_page(company_name):
 def get_predictions():
     try:
         predictions = []
-        df_date = pd.read_sql('SELECT MAX([Prediction_Date]) AS d FROM [Final_Analysis]', engine)
+        df_date = pd.read_sql('SELECT MAX("Prediction_Date") AS d FROM final_analysis', engine)
         if df_date.empty or df_date.iloc[0]["d"] is None:
-            logger.warning("No predictions found in Final_Analysis")
+            logger.warning("No predictions found in final_analysis")
             return predictions, ""
         latest_date = df_date.iloc[0]["d"]
         df = pd.read_sql(text("""
-            SELECT [Ticker],[Predicted_Closing_Price]
-            FROM [Final_Analysis]
-            WHERE [Prediction_Date]=:d
+            SELECT "Ticker","Predicted_Closing_Price"
+            FROM final_analysis
+            WHERE "Prediction_Date" = :d
         """), engine, params={"d": latest_date})
         for r in df.itertuples():
             predictions.append({"ticker": r.Ticker, "price": r.Predicted_Closing_Price})
@@ -210,27 +219,27 @@ def get_predictions():
 
 def get_my_date():
     try:
-        df = pd.read_sql('SELECT MAX([Date]) AS d FROM [Prediction_vs_Actual]', engine)
+        df = pd.read_sql('SELECT MAX("Date") AS d FROM prediction_vs_actual', engine)
         result = df.iloc[0]["d"] if not df.empty else None
         logger.info(f"Retrieved my_date: {result}")
         return result
     except Exception as e:
-        logger.warning(f"Prediction_vs_Actual table may not exist or is empty: {str(e)}")
+        logger.warning(f"prediction_vs_actual table may not exist or is empty: {str(e)}")
         return None
 
 @app.route('/prediction-vs-actual')
 def prediction_vs_actual():
     try:
         logger.info("Loading prediction vs actual data")
-        df_date = pd.read_sql('SELECT MAX([Date]) AS d FROM [Prediction_vs_Actual]', engine)
+        df_date = pd.read_sql('SELECT MAX("Date") AS d FROM prediction_vs_actual', engine)
         if df_date.empty or df_date.iloc[0]["d"] is None:
-            logger.warning("No data found in Prediction_vs_Actual")
+            logger.warning("No data found in prediction_vs_actual")
             return jsonify([])
         latest_date = df_date.iloc[0]["d"]
         df = pd.read_sql(text("""
-            SELECT [Company],[Ticker],[Predicted_Closing_Price],[Actual_Closing_Price]
-            FROM [Prediction_vs_Actual]
-            WHERE [Date]=:d
+            SELECT "Company","Ticker","Predicted_Closing_Price","Actual_Closing_Price"
+            FROM prediction_vs_actual
+            WHERE "Date" = :d
         """), engine, params={"d": latest_date})
         result = [
             {
@@ -244,7 +253,7 @@ def prediction_vs_actual():
         logger.info(f"Retrieved {len(result)} prediction vs actual records")
         return jsonify(result)
     except Exception as e:
-        logger.warning(f"Prediction_vs_Actual table may not exist: {str(e)}")
+        logger.warning(f"prediction_vs_actual table may not exist: {str(e)}")
         return jsonify([])
 
 VALID_KEY = os.getenv("VALID_KEY", "217621")

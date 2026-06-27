@@ -7,3 +7,6 @@ yfinance
 gunicorn
 flask-apscheduler
 psycopg2-binary
+scikit-learn
+numpy
+openpyxl

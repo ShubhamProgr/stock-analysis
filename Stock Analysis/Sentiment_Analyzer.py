@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 import pandas as pd
 import re
-import pyodbc
+from sqlalchemy import create_engine, text
 from transformers import BertTokenizer, BertForSequenceClassification, pipeline
 
 load_dotenv()
@@ -10,9 +10,21 @@ load_dotenv()
 # ==================== Configuration ====================
 input_file = os.getenv("NEWS_FILE")
 SENTIMENT_OUTPUT_FILE = os.getenv("SENTIMENT_OUTPUT_FILE")
-MSSQL_SERVER = os.getenv("MSSQL_SERVER")
-MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    supabase_host = os.getenv("SUPABASE_DB_HOST")
+    supabase_port = os.getenv("SUPABASE_DB_PORT", "5432")
+    supabase_name = os.getenv("SUPABASE_DB_NAME", "postgres")
+    supabase_user = os.getenv("SUPABASE_DB_USER", "postgres")
+    supabase_password = os.getenv("SUPABASE_DB_PASSWORD")
+    supabase_sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+    if not all([supabase_host, supabase_password]):
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_* environment variables")
+    DATABASE_URL = (
+        f"postgresql+psycopg2://{supabase_user}:{supabase_password}"
+        f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
+    )
 
 # Company to Ticker mapping
 COMPANY_TICKERS = {
@@ -236,57 +248,44 @@ try:
     results_df.to_excel(SENTIMENT_OUTPUT_FILE, index=False, engine='openpyxl')
     print(f" Excel saved: {SENTIMENT_OUTPUT_FILE} ({len(results)} rows)")
     
-    # Save to SQL Server
-    print(f"\n Syncing to SQL Server...")
-    conn_str = (
-        f"DRIVER={{{MSSQL_DRIVER}}};"
-        f"SERVER={MSSQL_SERVER};"
-        f"DATABASE={MSSQL_DATABASE};"
-        f"Trusted_Connection=yes;"
-    )
-    
-    conn = pyodbc.connect(conn_str)
-    cursor = conn.cursor()
-    
-    # Create table with PRIMARY KEY
-    cursor.execute("""
-    IF NOT EXISTS (
-        SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Company_FinBERT_Sentiments'
-    )
-    CREATE TABLE Company_FinBERT_Sentiments (
-        [Company] NVARCHAR(255) NOT NULL PRIMARY KEY,
-        [Ticker] NVARCHAR(50),
-        [ArticleCount] INT,
-        [Paragraph] NVARCHAR(MAX),
-        [Sentiment] NVARCHAR(50),
-        [Score] FLOAT
-    )
-    """)
-    conn.commit()
-    
-    # Insert data (delete then insert per company for consistency)
-    delete_query = "DELETE FROM Company_FinBERT_Sentiments WHERE [Company] = ?"
-    insert_query = """
-    INSERT INTO Company_FinBERT_Sentiments 
-    ([Company], [Ticker], [ArticleCount], [Paragraph], [Sentiment], [Score])
-    VALUES (?, ?, ?, ?, ?, ?)
-    """
-    
-    for row in results:
-        cursor.execute(delete_query, row["Company"])
-        cursor.execute(insert_query,
-            row["Company"],
-            row["Ticker"],
-            row["ArticleCount"],
-            row["Paragraph"],
-            row["Sentiment"],
-            row["Score"]
-        )
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print(f" SQL Server synced: {len(results)} rows")
+    print(f"\n Syncing to Supabase Postgres...")
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS company_finbert_sentiments (
+                "Company" TEXT PRIMARY KEY,
+                "Ticker" TEXT,
+                "ArticleCount" INTEGER,
+                "Paragraph" TEXT,
+                "Sentiment" TEXT,
+                "Score" DOUBLE PRECISION
+            )
+        """))
+
+        insert_query = text("""
+            INSERT INTO company_finbert_sentiments
+            ("Company", "Ticker", "ArticleCount", "Paragraph", "Sentiment", "Score")
+            VALUES (:company, :ticker, :article_count, :paragraph, :sentiment, :score)
+            ON CONFLICT ("Company") DO UPDATE SET
+                "Ticker" = EXCLUDED."Ticker",
+                "ArticleCount" = EXCLUDED."ArticleCount",
+                "Paragraph" = EXCLUDED."Paragraph",
+                "Sentiment" = EXCLUDED."Sentiment",
+                "Score" = EXCLUDED."Score"
+        """)
+
+        for row in results:
+            conn.execute(insert_query, {
+                "company": row["Company"],
+                "ticker": row["Ticker"],
+                "article_count": row["ArticleCount"],
+                "paragraph": row["Paragraph"],
+                "sentiment": row["Sentiment"],
+                "score": row["Score"],
+            })
+
+    print(f" Supabase Postgres synced: {len(results)} rows")
     
     # Summary
     print("\n" + "="*70)

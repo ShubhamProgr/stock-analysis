@@ -2,25 +2,29 @@ from dotenv import load_dotenv
 import os
 import yfinance as yf
 import pandas as pd
-import pyodbc
 import numpy
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-MSSQL_SERVER = os.getenv("MSSQL_SERVER")
-MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    supabase_host = os.getenv("SUPABASE_DB_HOST")
+    supabase_port = os.getenv("SUPABASE_DB_PORT", "5432")
+    supabase_name = os.getenv("SUPABASE_DB_NAME", "postgres")
+    supabase_user = os.getenv("SUPABASE_DB_USER", "postgres")
+    supabase_password = os.getenv("SUPABASE_DB_PASSWORD")
+    supabase_sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+    if not all([supabase_host, supabase_password]):
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_* environment variables")
+    DATABASE_URL = (
+        f"postgresql+psycopg2://{supabase_user}:{supabase_password}"
+        f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
+    )
 
 table_name = "Company_Info"
 
-conn_str = (
-    f"DRIVER={{{MSSQL_DRIVER}}};"
-    f"SERVER={MSSQL_SERVER};"
-    f"DATABASE={MSSQL_DATABASE};"
-    f"Trusted_Connection=yes;"
-)
-conn = pyodbc.connect(conn_str)
-cursor = conn.cursor()
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 tickers = [
     'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS',
@@ -65,71 +69,84 @@ df = pd.DataFrame(data)
 df.rename(columns={'symbol': 'Ticker'}, inplace=True)
 df.replace([numpy.nan, numpy.inf, -numpy.inf], None, inplace=True)
 
-cursor.execute(f"""
-IF NOT EXISTS (
-    SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}'
+with engine.begin() as conn:
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS {table_name.lower()} (
+            "Ticker" TEXT PRIMARY KEY,
+            "longName" TEXT,
+            "sector" TEXT,
+            "industry" TEXT,
+            "fullTimeEmployees" INTEGER,
+            "marketCap" BIGINT,
+            "totalRevenue" BIGINT,
+            "grossMargins" DOUBLE PRECISION,
+            "operatingMargins" DOUBLE PRECISION,
+            "profitMargins" DOUBLE PRECISION,
+            "totalCash" BIGINT,
+            "totalDebt" BIGINT,
+            "52WeekChange" DOUBLE PRECISION,
+            "sharesOutstanding" BIGINT,
+            "floatShares" BIGINT,
+            "trailingPE" DOUBLE PRECISION
+        )
+    """))
+
+delete_query = text('DELETE FROM company_info WHERE "Ticker" = :ticker')
+insert_query = text("""
+INSERT INTO company_info (
+    "Ticker", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
+    "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
+    "totalCash", "totalDebt", "52WeekChange",
+    "sharesOutstanding", "floatShares", "trailingPE"
+) VALUES (
+    :ticker, :long_name, :sector, :industry, :full_time_employees, :market_cap,
+    :total_revenue, :gross_margins, :operating_margins, :profit_margins,
+    :total_cash, :total_debt, :week52_change,
+    :shares_outstanding, :float_shares, :trailing_pe
 )
-BEGIN
-    CREATE TABLE {table_name} (
-        [Ticker] NVARCHAR(50) PRIMARY KEY,
-        [longName] NVARCHAR(255),
-        [sector] NVARCHAR(100),
-        [industry] NVARCHAR(100),
-        [fullTimeEmployees] INT,
-        [marketCap] BIGINT,
-        [totalRevenue] BIGINT,
-        [grossMargins] FLOAT,
-        [operatingMargins] FLOAT,
-        [profitMargins] FLOAT,
-        [totalCash] BIGINT,
-        [totalDebt] BIGINT,
-        [52WeekChange] FLOAT,
-        [sharesOutstanding] BIGINT,
-        [floatShares] BIGINT,
-        [trailingPE] FLOAT
-    )
-END
+ON CONFLICT ("Ticker") DO UPDATE SET
+    "longName" = EXCLUDED."longName",
+    "sector" = EXCLUDED."sector",
+    "industry" = EXCLUDED."industry",
+    "fullTimeEmployees" = EXCLUDED."fullTimeEmployees",
+    "marketCap" = EXCLUDED."marketCap",
+    "totalRevenue" = EXCLUDED."totalRevenue",
+    "grossMargins" = EXCLUDED."grossMargins",
+    "operatingMargins" = EXCLUDED."operatingMargins",
+    "profitMargins" = EXCLUDED."profitMargins",
+    "totalCash" = EXCLUDED."totalCash",
+    "totalDebt" = EXCLUDED."totalDebt",
+    "52WeekChange" = EXCLUDED."52WeekChange",
+    "sharesOutstanding" = EXCLUDED."sharesOutstanding",
+    "floatShares" = EXCLUDED."floatShares",
+    "trailingPE" = EXCLUDED."trailingPE"
 """)
-conn.commit()
 
-delete_query = f"DELETE FROM {table_name} WHERE [Ticker] = ?"
-insert_query = f"""
-INSERT INTO {table_name} (
-    [Ticker], [longName], [sector], [industry], [fullTimeEmployees], [marketCap],
-    [totalRevenue], [grossMargins], [operatingMargins], [profitMargins],
-    [totalCash], [totalDebt], [52WeekChange],
-    [sharesOutstanding], [floatShares], [trailingPE]
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-"""
+with engine.begin() as conn:
+    for _, row in df.iterrows():
+        ticker = row['Ticker']
+        if pd.isna(ticker):
+            print("Skipping row with NULL Ticker")
+            continue
 
-for _, row in df.iterrows():
-    ticker = row['Ticker']
-    if pd.isna(ticker):
-        print(f"Skipping row with NULL Ticker")
-        continue
-    cursor.execute(delete_query, ticker)
-    
-    values = (
-        row['Ticker'],
-        row['longName'] if pd.notna(row['longName']) else None,
-        row['sector'] if pd.notna(row['sector']) else None,
-        row['industry'] if pd.notna(row['industry']) else None,
-        int(row['fullTimeEmployees']) if pd.notna(row['fullTimeEmployees']) else None,
-        int(row['marketCap']) if pd.notna(row['marketCap']) else None,
-        int(row['totalRevenue']) if pd.notna(row['totalRevenue']) else None,
-        float(row['grossMargins']) if pd.notna(row['grossMargins']) else None,
-        float(row['operatingMargins']) if pd.notna(row['operatingMargins']) else None,
-        float(row['profitMargins']) if pd.notna(row['profitMargins']) else None,
-        int(row['totalCash']) if pd.notna(row['totalCash']) else None,
-        int(row['totalDebt']) if pd.notna(row['totalDebt']) else None,
-        float(row['52WeekChange']) if pd.notna(row['52WeekChange']) else None,
-        int(row['sharesOutstanding']) if pd.notna(row['sharesOutstanding']) else None,
-        int(row['floatShares']) if pd.notna(row['floatShares']) else None,
-        float(row['trailingPE']) if pd.notna(row['trailingPE']) else None
-    )
-    cursor.execute(insert_query, *values)
+        conn.execute(delete_query, {"ticker": ticker})
+        conn.execute(insert_query, {
+            "ticker": row['Ticker'],
+            "long_name": row['longName'] if pd.notna(row['longName']) else None,
+            "sector": row['sector'] if pd.notna(row['sector']) else None,
+            "industry": row['industry'] if pd.notna(row['industry']) else None,
+            "full_time_employees": int(row['fullTimeEmployees']) if pd.notna(row['fullTimeEmployees']) else None,
+            "market_cap": int(row['marketCap']) if pd.notna(row['marketCap']) else None,
+            "total_revenue": int(row['totalRevenue']) if pd.notna(row['totalRevenue']) else None,
+            "gross_margins": float(row['grossMargins']) if pd.notna(row['grossMargins']) else None,
+            "operating_margins": float(row['operatingMargins']) if pd.notna(row['operatingMargins']) else None,
+            "profit_margins": float(row['profitMargins']) if pd.notna(row['profitMargins']) else None,
+            "total_cash": int(row['totalCash']) if pd.notna(row['totalCash']) else None,
+            "total_debt": int(row['totalDebt']) if pd.notna(row['totalDebt']) else None,
+            "week52_change": float(row['52WeekChange']) if pd.notna(row['52WeekChange']) else None,
+            "shares_outstanding": int(row['sharesOutstanding']) if pd.notna(row['sharesOutstanding']) else None,
+            "float_shares": int(row['floatShares']) if pd.notna(row['floatShares']) else None,
+            "trailing_pe": float(row['trailingPE']) if pd.notna(row['trailingPE']) else None,
+        })
 
-conn.commit()
-cursor.close()
-conn.close()
-print("Data inserted into SQL Server successfully.")
+print("Data inserted into Supabase Postgres successfully.")

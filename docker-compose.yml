@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    container_name: stock_engine
+    working_dir: /app
+    volumes:
+      - ".:/app"
+    env_file:
+      - .env
+    environment:
+      SCRIPT_DIR: /app/stock analysis
+    restart: unless-stopped
+
+  website:
+    build:
+      context: .
+      dockerfile: Dockerfile.website
+    container_name: stock_website
+    working_dir: /app
+    ports:
+      - "5000:5000"
+    volumes:
+      - ".:/app"
+    env_file:
+      - .env
+    environment:
+      SCRIPT_DIR: /app/stock analysis
+    restart: unless-stopped

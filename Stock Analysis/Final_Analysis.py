@@ -4,26 +4,31 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import os
-import pyodbc
 import pandas as pd
 import numpy as np
 import warnings
+from sqlalchemy import create_engine, text
 
 warnings.filterwarnings("ignore")
 
 load_dotenv()
 
-MSSQL_SERVER = os.getenv("MSSQL_SERVER")
-MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    supabase_host = os.getenv("SUPABASE_DB_HOST")
+    supabase_port = os.getenv("SUPABASE_DB_PORT", "5432")
+    supabase_name = os.getenv("SUPABASE_DB_NAME", "postgres")
+    supabase_user = os.getenv("SUPABASE_DB_USER", "postgres")
+    supabase_password = os.getenv("SUPABASE_DB_PASSWORD")
+    supabase_sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+    if not all([supabase_host, supabase_password]):
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_* environment variables")
+    DATABASE_URL = (
+        f"postgresql+psycopg2://{supabase_user}:{supabase_password}"
+        f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
+    )
 
-conn_str = (
-    f"DRIVER={{{MSSQL_DRIVER}}};"
-    f"SERVER={MSSQL_SERVER};"
-    f"DATABASE={MSSQL_DATABASE};"
-    f"Trusted_Connection=yes;"
-)
-conn = pyodbc.connect(conn_str)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 ticker_to_company = {
     'RELIANCE.NS': 'reliance', 'TCS.NS': 'tcs', 'INFY.NS': 'infosys', 'HDFCBANK.NS': 'hdfc bank',
@@ -89,12 +94,12 @@ results = []
 for ticker, company in ticker_to_company.items():
     try:
         query = """
-            SELECT [Date], [Open], [High], [Low], [Close], [Volume]
-            FROM StockData
-            WHERE [Ticker] = ?
-            ORDER BY [Date] ASC
+            SELECT "Date", "Open", "High", "Low", "Close", "Volume"
+            FROM stock_data
+            WHERE "Ticker" = :ticker
+            ORDER BY "Date" ASC
         """
-        df = pd.read_sql(query, conn, params=[ticker])
+        df = pd.read_sql(text(query), engine, params={"ticker": ticker})
         if len(df) < 10:
             continue
 
@@ -113,12 +118,13 @@ for ticker, company in ticker_to_company.items():
         df = df.dropna()
 
         sent_query = """
-            SELECT TOP 1 Sentiment, Score
-            FROM Company_FinBERT_Sentiments
-            WHERE Ticker = ?
-            ORDER BY Score DESC
+            SELECT "Sentiment", "Score"
+            FROM company_finbert_sentiments
+            WHERE "Ticker" = :ticker
+            ORDER BY "Score" DESC
+            LIMIT 1
         """
-        sent_df = pd.read_sql(sent_query, conn, params=[ticker])
+        sent_df = pd.read_sql(text(sent_query), engine, params={"ticker": ticker})
         if not sent_df.empty:
             sentiment_label = sent_df['Sentiment'].iloc[0]
             sentiment_score = sent_df['Score'].iloc[0]
@@ -187,68 +193,65 @@ else:
     final_df.to_excel(output_path, index=False)
     print(f"Final Analysis saved to {output_path}")
 
-    table_name = 'Final_Analysis'
-    create_table_sql = f"""
-    IF NOT EXISTS (
-        SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}'
-    )
-    BEGIN
-        CREATE TABLE {table_name} (
-            Company VARCHAR(100),
-            Ticker VARCHAR(20),
-            Prediction_Date DATE,
-            Predicted_Closing_Price FLOAT,
-            Last_Close FLOAT,
-            Last_Close_Date DATE,
-            MAE FLOAT,
-            MSE FLOAT,
-            RMSE FLOAT,
-            R2_Score FLOAT,
-            Sentiment VARCHAR(50),
-            Sentiment_Score FLOAT
-        );
-    END
-    """
-    cursor = conn.cursor()
-    cursor.execute(create_table_sql)
-    conn.commit()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS final_analysis (
+                "Company" TEXT,
+                "Ticker" TEXT,
+                "Prediction_Date" DATE,
+                "Predicted_Closing_Price" DOUBLE PRECISION,
+                "Last_Close" DOUBLE PRECISION,
+                "Last_Close_Date" DATE,
+                "MAE" DOUBLE PRECISION,
+                "MSE" DOUBLE PRECISION,
+                "RMSE" DOUBLE PRECISION,
+                "R2_Score" DOUBLE PRECISION,
+                "Sentiment" TEXT,
+                "Sentiment_Score" DOUBLE PRECISION,
+                PRIMARY KEY ("Ticker", "Prediction_Date")
+            )
+        """))
 
-    delete_sql = f"DELETE FROM {table_name} WHERE [Ticker] = ? AND [Prediction_Date] = ?"
-    
-    insert_sql = f"""
-    INSERT INTO {table_name} (
-        [Company], [Ticker], [Prediction_Date],
-        [Predicted_Closing_Price], [Last_Close], [Last_Close_Date],
-        [MAE], [MSE], [RMSE], [R2_Score], [Sentiment], [Sentiment_Score]
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
+        insert_sql = text("""
+            INSERT INTO final_analysis (
+                "Company", "Ticker", "Prediction_Date",
+                "Predicted_Closing_Price", "Last_Close", "Last_Close_Date",
+                "MAE", "MSE", "RMSE", "R2_Score", "Sentiment", "Sentiment_Score"
+            )
+            VALUES (
+                :company, :ticker, :prediction_date,
+                :predicted_closing_price, :last_close, :last_close_date,
+                :mae, :mse, :rmse, :r2_score, :sentiment, :sentiment_score
+            )
+            ON CONFLICT ("Ticker", "Prediction_Date") DO UPDATE SET
+                "Company" = EXCLUDED."Company",
+                "Predicted_Closing_Price" = EXCLUDED."Predicted_Closing_Price",
+                "Last_Close" = EXCLUDED."Last_Close",
+                "Last_Close_Date" = EXCLUDED."Last_Close_Date",
+                "MAE" = EXCLUDED."MAE",
+                "MSE" = EXCLUDED."MSE",
+                "RMSE" = EXCLUDED."RMSE",
+                "R2_Score" = EXCLUDED."R2_Score",
+                "Sentiment" = EXCLUDED."Sentiment",
+                "Sentiment_Score" = EXCLUDED."Sentiment_Score"
+        """)
 
-    for _, row in final_df.iterrows():
-        ticker = row['Ticker']
-        prediction_date = row['Prediction_Date'].date() if hasattr(row['Prediction_Date'], "date") else pd.to_datetime(row['Prediction_Date']).date()
-        
-        # Delete existing data for this ticker-date combination
-        cursor.execute(delete_sql, ticker, prediction_date)
-        
-        # Insert fresh data
-        values = (
-            row['Company'],
-            ticker,
-            prediction_date,
-            row['Predicted_Closing_Price'],
-            row['Last_Close'],
-            row['Last_Close_Date'].date() if hasattr(row['Last_Close_Date'], "date") else pd.to_datetime(row['Last_Close_Date']).date(),
-            row['MAE'],
-            row['MSE'],
-            row['RMSE'],
-            row['R2_Score'],
-            row['Sentiment'],
-            row['Sentiment_Score']
-        )
-        cursor.execute(insert_sql, *values)
+        for _, row in final_df.iterrows():
+            ticker = row['Ticker']
+            prediction_date = row['Prediction_Date'].date() if hasattr(row['Prediction_Date'], "date") else pd.to_datetime(row['Prediction_Date']).date()
+            conn.execute(insert_sql, {
+                "company": row['Company'],
+                "ticker": ticker,
+                "prediction_date": prediction_date,
+                "predicted_closing_price": row['Predicted_Closing_Price'],
+                "last_close": row['Last_Close'],
+                "last_close_date": row['Last_Close_Date'].date() if hasattr(row['Last_Close_Date'], "date") else pd.to_datetime(row['Last_Close_Date']).date(),
+                "mae": row['MAE'],
+                "mse": row['MSE'],
+                "rmse": row['RMSE'],
+                "r2_score": row['R2_Score'],
+                "sentiment": row['Sentiment'],
+                "sentiment_score": row['Sentiment_Score']
+            })
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print(f"Final Analysis inserted into SQL Server table {table_name}")
+    print("Final Analysis inserted into Supabase Postgres table final_analysis")

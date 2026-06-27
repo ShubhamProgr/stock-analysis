@@ -1,81 +1,83 @@
 from dotenv import load_dotenv
 import os
-import pyodbc
+from urllib.parse import quote_plus
+
+from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-MSSQL_SERVER = os.getenv("MSSQL_SERVER")
-MSSQL_DATABASE = os.getenv("MSSQL_DATABASE")
-MSSQL_DRIVER = os.getenv("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
 
-CREATE_TABLE_QUERY = """
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Prediction_vs_Actual' AND xtype='U')
-CREATE TABLE Prediction_vs_Actual (
-    [Company] NVARCHAR(255),
-    [Ticker] NVARCHAR(50),
-    [Date] DATE,
-    [Predicted_Closing_Price] FLOAT,
-    [Actual_Closing_Price] FLOAT
+def build_database_url() -> str:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    supabase_host = os.getenv("SUPABASE_DB_HOST")
+    supabase_port = os.getenv("SUPABASE_DB_PORT", "5432")
+    supabase_name = os.getenv("SUPABASE_DB_NAME", "postgres")
+    supabase_user = os.getenv("SUPABASE_DB_USER", "postgres")
+    supabase_password = os.getenv("SUPABASE_DB_PASSWORD")
+    supabase_sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+
+    if not all([supabase_host, supabase_password]):
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_* environment variables")
+
+    return (
+        f"postgresql+psycopg2://{quote_plus(supabase_user)}:{quote_plus(supabase_password)}"
+        f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
+    )
+
+
+CREATE_TABLE_QUERY = text("""
+CREATE TABLE IF NOT EXISTS prediction_vs_actual (
+    "Company" TEXT,
+    "Ticker" TEXT,
+    "Date" DATE,
+    "Predicted_Closing_Price" DOUBLE PRECISION,
+    "Actual_Closing_Price" DOUBLE PRECISION,
+    PRIMARY KEY ("Ticker", "Date")
 )
-"""
+""")
 
-INSERT_QUERY = """
-INSERT INTO Prediction_vs_Actual (
-    [Company], 
-    [Ticker], 
-    [Date], 
-    [Predicted_Closing_Price], 
-    [Actual_Closing_Price]
+
+INSERT_QUERY = text("""
+INSERT INTO prediction_vs_actual (
+    "Company",
+    "Ticker",
+    "Date",
+    "Predicted_Closing_Price",
+    "Actual_Closing_Price"
 )
-SELECT 
-    Final_Analysis.[Company],
-    Final_Analysis.[Ticker],
-    Final_Analysis.[Prediction_Date],
-    Final_Analysis.[Predicted_Closing_Price],
-    StockData.[Close]
-FROM Final_Analysis 
-JOIN StockData 
-    ON Final_Analysis.[Ticker] = StockData.[Ticker] 
-    AND Final_Analysis.[Prediction_Date] = StockData.[Date]
-WHERE NOT EXISTS (
-    SELECT 1 
-    FROM Prediction_vs_Actual 
-    WHERE Prediction_vs_Actual.[Ticker] = StockData.[Ticker] 
-      AND Prediction_vs_Actual.[Date] = Final_Analysis.[Prediction_Date]
-)
-"""
-conn_str = (
-    f"DRIVER={{{MSSQL_DRIVER}}};"
-    f"SERVER={MSSQL_SERVER};"
-    f"DATABASE={MSSQL_DATABASE};"
-    f"Trusted_Connection=yes;"
-)
+SELECT
+    fa."Company",
+    fa."Ticker",
+    fa."Prediction_Date",
+    fa."Predicted_Closing_Price",
+    sd."Close"
+FROM final_analysis fa
+JOIN stock_data sd
+    ON fa."Ticker" = sd."Ticker"
+    AND fa."Prediction_Date" = sd."Date"
+ON CONFLICT ("Ticker", "Date") DO NOTHING
+""")
 
-conn = None
-cursor = None
-try:
-    conn = pyodbc.connect(conn_str)
-    cursor = conn.cursor()
-    
-    cursor.execute(CREATE_TABLE_QUERY)
-    conn.commit()
-    print("Table 'Prediction_vs_Actual' checked/created.")
 
-    cursor.execute(INSERT_QUERY)
-    conn.commit()
-    print("Prediction_vs_Actual updated without duplicates.")
-except Exception as e:
-    print("Failed to update Prediction_vs_Actual:", e)
-    raise
+def main() -> None:
+    engine = create_engine(build_database_url(), pool_pre_ping=True)
 
-finally:
-    if cursor:
-        try:
-            cursor.close()
-        except:
-            pass
-    if conn:
-        try:
-            conn.close()
-        except:
-            pass
+    try:
+        with engine.begin() as conn:
+            conn.execute(CREATE_TABLE_QUERY)
+            print("Table 'Prediction_vs_Actual' checked/created.")
+
+            conn.execute(INSERT_QUERY)
+            print("Prediction_vs_Actual updated without duplicates.")
+    except Exception as exc:
+        print("Failed to update Prediction_vs_Actual:", exc)
+        raise
+    finally:
+        engine.dispose()
+
+
+if __name__ == "__main__":
+    main()
