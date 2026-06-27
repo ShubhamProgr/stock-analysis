@@ -12,3 +12,5 @@ RUN mkdir -p /app/data
 EXPOSE 5000
 
 CMD ["python", "website/app.py"]
+
+COPY . /app

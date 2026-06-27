@@ -11,3 +11,5 @@ RUN mkdir -p /app/data
 
 # Keeps the container alive so you can run scripts via `docker exec` or a scheduler
 CMD ["tail", "-f", "/dev/null"]
+
+COPY . /app
