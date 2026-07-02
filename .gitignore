@@ -4,3 +4,4 @@
 .idea
 .gitignore
 data/*.xlsx
+package-lock.json
