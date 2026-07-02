@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Company Not Found | Aster Capital{% endblock %}
+
+{% block content %}
+<section class="section-pad">
+  <div class="container-xxl">
+    <div class="empty-state-card">
+      <span class="eyebrow">Search Result</span>
+      <h1>We could not find "{{ company_name | upper }}" in the tracked company list.</h1>
+      <p>Try a mapped company keyword from the dashboard search, or return to the main workspace and launch analysis from there.</p>
+      <div class="d-flex flex-wrap gap-3 justify-content-center">
+        <a class="btn btn-primary btn-pill" href="{{ url_for('index') }}">Back to dashboard</a>
+        <a class="btn btn-outline-primary btn-pill" href="{{ url_for('key_check') }}">Open SQL console</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

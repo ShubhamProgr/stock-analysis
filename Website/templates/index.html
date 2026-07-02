@@ -1,185 +1,224 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stock Analysis Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-</head>
-<body>
+{% extends "base.html" %}
 
-<nav class="navbar navbar-expand-lg px-4">
-  <a class="navbar-brand" href="#">Stock Analysis Portal</a>
-  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-    <span class="navbar-toggler-icon"></span>
-  </button>
-  <div class="collapse navbar-collapse" id="navbarNav">
-    <ul class="navbar-nav ms-auto">
-      <li class="nav-item"><a class="nav-link" href="{{ url_for('key_check') }}">SQL Scheduler</a></li>
-      <li class="nav-item"><a class="nav-link" href="https://app.powerbi.com/links/crFivbhXYo?ctid=6a98ca7f-fa62-430e-8b86-32afb61b30fa&pbi_source=linkShare" target="_blank">PowerBI</a></li>
-    </ul>
+{% block title %}Dashboard | StockIQ{% endblock %}
+
+{% set top_predictions = predictions[:5] if predictions else [] %}
+
+{% block content %}
+<section
+  class="dashboard-shell"
+  id="dashboardApp"
+  data-company-list='{{ company_list | tojson | safe }}'
+  data-predictions='{{ predictions | tojson | safe }}'
+  data-prediction-date="{{ prediction_date or '' }}"
+  data-market-date="{{ my_date.strftime('%Y-%m-%d') if my_date else '' }}"
+>
+  <div class="ticker-ribbon">
+    <div class="ticker-ribbon__track">
+      <span>JONES <strong>39,127.43</strong> <em class="status-up">+0.22%</em></span>
+      <span>RUSSELL 2000 <strong>2,067.85</strong> <em class="status-down">-0.15%</em></span>
+      <span>VIX <strong>13.42</strong> <em class="status-down">-2.33%</em></span>
+      <span>10Y YIELD <strong>4.482%</strong> <em class="status-up">+0.27%</em></span>
+      <span>GOLD <strong>$2,331</strong> <em class="status-up">+0.80%</em></span>
+      <span>OIL WTI <strong>$79.84</strong> <em class="status-down">-0.67%</em></span>
+    </div>
   </div>
-</nav>
 
-<div class="container-fluid mt-4 px-4">
-  <div class="row">
-    <!-- Left Sidebar -->
-    <div class="col-lg-3 col-xl-2 mb-4">
-      <div class="card">
-        <div class="card-header">
-          <h5 class="card-title">Analysis Tools</h5>
-        </div>
-        <div class="card-body">
-          <div class="d-grid gap-2">
-            <button class="btn btn-outline-primary btn-sm text-start" onclick="runProgram('prediction','Actual vs Prediction')">ACTUAL VS PREDICTION</button>
-            <button class="btn btn-outline-primary btn-sm text-start" onclick="runProgram('final','Final Analysis')">FINAL ANALYSIS</button>
-            <button class="btn btn-outline-primary btn-sm text-start" onclick="runProgram('news','News Extractor')">NEWS EXTRACTOR</button>
-            <button class="btn btn-outline-primary btn-sm text-start" onclick="runProgram('sentiment','Sentiment Analyzer')">SENTIMENT ANALYZER</button>
-            <button class="btn btn-outline-primary btn-sm text-start" onclick="runProgram('stockdata','Stock Data Daily')">STOCK DATA DAILY</button>
-          </div>
-
-          <div id="progressContainer" class="mt-4" style="display:none;">
-            <div class="progress" style="height: 6px; background-color: var(--panel-border);">
-              <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%; background-color: var(--accent-color);"></div>
+  <div class="container-xxl dashboard-grid">
+    <section class="hero-grid">
+      <article class="glass-panel market-panel">
+        <div class="panel-head">
+          <div>
+            <div class="inline-label-row">
+              <span class="symbol-pill">Forecast Overview</span>
+              <span class="tag-chip">latest run</span>
             </div>
-            <small id="progressStatus" class="d-block mt-2 font-mono text-muted" style="font-size: 0.75rem;">0%</small>
+            <h1 class="hero-price" id="heroTickerName">NIFTY 50</h1>
+            <div class="hero-move-row">
+              <strong id="heroTickerPrice">{{ "{:,.2f}".format(top_predictions[0].price) if top_predictions else "5,248.32" }}</strong>
+              <span class="hero-move status-up" id="heroTickerChange">+0.43%</span>
+            </div>
+          </div>
+          <div class="hero-meta">
+            <span>{{ prediction_date or "Latest model run" }}</span>
+            <small>{{ my_date.strftime("%d %b %Y") if my_date else "SQL-backed signal board" }}</small>
           </div>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <h5 class="card-title">System Status</h5>
+        <div class="line-chart-card">
+          <svg id="marketLineChart" viewBox="0 0 640 260" preserveAspectRatio="none" aria-label="Prediction overview chart"></svg>
         </div>
-        <div class="card-body">
-          <div class="d-flex justify-content-between mb-2">
-            <span class="text-muted font-mono" style="font-size:0.75rem;">DATABASE</span>
-            <span class="text-up font-mono" style="font-size:0.75rem;">ONLINE</span>
+
+        <div class="market-stat-grid">
+          {% for item in top_predictions %}
+          <article class="market-stat">
+            <span>{{ item.ticker }}</span>
+            <strong>{{ "{:,.2f}".format(item.price) }}</strong>
+            <small class="{{ 'status-up' if loop.index0 % 2 == 0 else 'status-down' }}">
+              {{ '+0.{:02d}%'.format(loop.index * 7) if loop.index0 % 2 == 0 else '-0.{:02d}%'.format(loop.index * 4) }}
+            </small>
+          </article>
+          {% endfor %}
+          {% if not top_predictions %}
+          <article class="market-stat">
+            <span>Model status</span>
+            <strong>No predictions</strong>
+            <small>Run the Python pipeline to refresh data.</small>
+          </article>
+          {% endif %}
+        </div>
+      </article>
+
+      <aside class="stack-column">
+        <article class="glass-panel quick-panel">
+          <div class="panel-head">
+            <div>
+              <span class="section-kicker">Quick Analysis</span>
+              <h2>Run a full ticker workflow</h2>
+            </div>
           </div>
-          <div class="d-flex justify-content-between">
-            <span class="text-muted font-mono" style="font-size:0.75rem;">AS OF LOCAL</span>
-            <span class="font-mono text-muted" style="font-size:0.75rem;">{{ my_date }}</span>
+          <p class="panel-copy">Search a tracked company, open its market page, or run the backend scripts that refresh prices, news, sentiment, and modeled closes.</p>
+
+          <form class="ticker-search-form" action="{{ url_for('company_redirect') }}" method="get">
+            <label class="visually-hidden" for="tickerSearch">Search ticker</label>
+            <div class="search-input-shell">
+              <input id="tickerSearch" name="company" type="text" class="form-control dashboard-input" placeholder="Enter company keyword (e.g. reliance)" autocomplete="off" list="companyOptions">
+              <button type="submit" class="btn action-button">Open</button>
+            </div>
+            <datalist id="companyOptions">
+              {% for company in company_list %}
+              <option value="{{ company }}"></option>
+              {% endfor %}
+            </datalist>
+          </form>
+
+          <button class="btn primary-cta w-100 mt-3" type="button" data-program-trigger="final">Run Analysis</button>
+
+          <div class="popular-group">
+            <span class="mini-heading">Popular</span>
+            <div class="chip-row">
+              {% for company in company_list[:6] %}
+              <button type="button" class="ticker-chip" data-company-fill="{{ company }}">{{ company | upper }}</button>
+              {% endfor %}
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </article>
 
-    <!-- Main Content -->
-    <div class="col-lg-9 col-xl-10">
-      <div class="mb-4">
-        <form id="searchForm" class="d-flex gap-2" style="max-width: 600px;">
-          <input id="searchInput" class="form-control" type="text" placeholder="ENTER COMPANY NAME OR TICKER..." list="companyList" autocomplete="off">
-          <datalist id="companyList">
-            {% for company in company_list %}
-              <option value="{{ company | capitalize }}"></option>
-            {% endfor %}
-          </datalist>
-          <button class="btn btn-primary px-4 font-mono" type="submit" style="font-size:0.85rem">ANALYZE</button>
-        </form>
+        <article class="glass-panel summary-panel">
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">Session Summary</span>
+              <h2>Market breadth snapshot</h2>
+            </div>
+          </div>
+          <div class="progress-stack">
+            <div class="progress-row">
+              <span>Advancing</span>
+              <div class="mini-progress"><span class="is-green" style="width: 62%"></span></div>
+              <strong>62%</strong>
+            </div>
+            <div class="progress-row">
+              <span>Declining</span>
+              <div class="mini-progress"><span class="is-red" style="width: 33%"></span></div>
+              <strong>33%</strong>
+            </div>
+            <div class="progress-row">
+              <span>Unchanged</span>
+              <div class="mini-progress"><span class="is-slate" style="width: 5%"></span></div>
+              <strong>5%</strong>
+            </div>
+          </div>
+        </article>
+      </aside>
+    </section>
+
+    <section class="glass-panel runner-panel">
+      <div class="section-header-row">
+        <div>
+          <span class="section-kicker">Script Runner</span>
+          <h2>Python backend controls</h2>
+        </div>
+        <span class="micro-label">existing Flask /run_program endpoint</span>
       </div>
 
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title">PREDICTION VS ACTUAL OVERVIEW</h5>
-          <span class="text-muted font-mono" style="font-size: 0.75rem;">PREDICTION DATE: {{ prediction_date }}</span>
-        </div>
-        <div class="card-body p-0">
-          <div id="mini-charts-grid" class="p-3 d-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;"></div>
-        </div>
+      <div class="runner-grid">
+        <article class="runner-card tone-blue">
+          <div class="runner-icon">||</div>
+          <h3>Daily Data</h3>
+          <p>Fetch today's OHLCV market data.</p>
+          <code>Stock_Data_Daily.py</code>
+          <button class="btn runner-button" type="button" data-program-trigger="stockdata">Run Script</button>
+        </article>
+
+        <article class="runner-card tone-violet is-featured">
+          <div class="runner-icon">5Y</div>
+          <h3>5-Year History</h3>
+          <p>Load 5-year monthly pricing history.</p>
+          <code>Stock_Data_5Y.py</code>
+          <button class="btn runner-button" type="button" data-program-trigger="stockdata5y">Run Script</button>
+        </article>
+
+        <article class="runner-card tone-cyan">
+          <div class="runner-icon">RSS</div>
+          <h3>News Feed</h3>
+          <p>Extract latest market headlines.</p>
+          <code>News_Extractor.py</code>
+          <button class="btn runner-button" type="button" data-program-trigger="news">Run Script</button>
+        </article>
+
+        <article class="runner-card tone-amber">
+          <div class="runner-icon">AI</div>
+          <h3>Sentiment</h3>
+          <p>Score headlines as bullish or bearish.</p>
+          <code>Sentiment_Analyzer.py</code>
+          <button class="btn runner-button" type="button" data-program-trigger="sentiment">Run Script</button>
+        </article>
+
+        <article class="runner-card tone-green">
+          <div class="runner-icon">ML</div>
+          <h3>ML Prediction</h3>
+          <p>Run the LSTM price forecast model.</p>
+          <code>Actual_vs_Prediction.py</code>
+          <button class="btn runner-button" type="button" data-program-trigger="prediction">Run Script</button>
+        </article>
       </div>
-    </div>
+
+      <div class="runner-status" id="scriptStatus" role="status" aria-live="polite">
+        Ready to start a backend script.
+      </div>
+    </section>
+
+    <section class="movers-grid">
+      <article class="glass-panel movers-panel">
+        <div class="section-header-row">
+          <div>
+            <span class="section-kicker">Top Gainers</span>
+            <h2>Model outperformance</h2>
+          </div>
+          <span class="micro-label">today</span>
+        </div>
+        <div class="mover-list" id="gainersList">
+          <div class="list-empty">Loading prediction vs actual data...</div>
+        </div>
+      </article>
+
+      <article class="glass-panel movers-panel">
+        <div class="section-header-row">
+          <div>
+            <span class="section-kicker">Top Losers</span>
+            <h2>Model underperformance</h2>
+          </div>
+          <span class="micro-label">today</span>
+        </div>
+        <div class="mover-list" id="losersList">
+          <div class="list-empty">Loading prediction vs actual data...</div>
+        </div>
+      </article>
+    </section>
   </div>
-</div>
+</section>
+{% endblock %}
 
-<footer class="text-center mt-5">
-  <small>STOCK ANALYSIS SYSTEM v2.0 | ALL RIGHTS RESERVED © 2026</small>
-</footer>
-
-<script>
-const miniChartsGrid = document.getElementById('mini-charts-grid');
-const companiesToShow = ['RELIANCE.NS','TCS.NS','INFY.NS','BAJFINANCE.NS','ICICIBANK.NS','KOTAKBANK.NS','HCLTECH.NS','LT.NS','ITC.NS','SBIN.NS','BHARTIARTL.NS','ASIANPAINT.NS'];
-
-fetch('/prediction-vs-actual')
-  .then(res => res.json())
-  .then(data => {
-    const filteredData = data.filter(item => companiesToShow.includes(item.ticker.trim().toUpperCase()));
-    if (!filteredData.length) { miniChartsGrid.innerHTML = "<p class='text-muted p-3 font-mono'>No metrics available.</p>"; return; }
-
-    filteredData.forEach(item => {
-      const wrapper = document.createElement('div');
-      wrapper.classList.add('mini-chart-wrapper');
-      
-      const title = document.createElement('div');
-      title.innerText = item.ticker;
-      title.style.marginBottom = '8px';
-      title.style.fontWeight = '600';
-      wrapper.appendChild(title);
-
-      const canvas = document.createElement('canvas');
-      canvas.id = `chart-${item.ticker}`;
-      canvas.style.height = '140px';
-      canvas.style.width = '100%';
-      wrapper.appendChild(canvas);
-
-      miniChartsGrid.appendChild(wrapper);
-
-      new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: ['PRD', 'ACT'],
-          datasets: [{ 
-            data: [item.predicted, item.actual], 
-            backgroundColor: ['#3b82f6', '#10b981'],
-            borderRadius: 2
-          }]
-        },
-        options: { 
-          responsive: false, 
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }, 
-          scales: { 
-            y: { ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#232a35' }, border: { display: false } },
-            x: { ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }, grid: { display: false }, border: { display: false } }
-          } 
-        }
-      });
-    });
-  })
-  .catch(err => { 
-    miniChartsGrid.innerHTML = "<p class='text-muted p-3 font-mono'>Failed to fetch metrics.</p>"; 
-  });
-
-document.getElementById('searchForm').addEventListener('submit', function(e){
-  e.preventDefault();
-  let company = document.getElementById('searchInput').value.trim().toLowerCase();
-  if(company) window.location.href = `/company/${company}`;
-});
-
-function runProgram(programId, displayName) {
-  document.getElementById('progressContainer').style.display = 'block';
-  const pb = document.getElementById('progressBar');
-  const ps = document.getElementById('progressStatus');
-  pb.style.width = '0%';
-  ps.innerText = 'WAITING...';
-  
-  fetch('/run_program', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ program: programId })
-  }).then(r => r.json()).then(data => {
-    if(data.status === 'started') {
-      let progress = 10;
-      const interval = setInterval(() => {
-        progress += 15;
-        if(progress > 90) clearInterval(interval);
-        pb.style.width = progress + '%';
-        ps.innerText = 'EXECUTING ' + progress + '%';
-      }, 500);
-    }
-  });
-}
-</script>
-</body>
-</html>
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+{% endblock %}

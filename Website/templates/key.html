@@ -1,69 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ACCESS PORTAL</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-  <style>
-    body {
-      background-color: var(--bg-color);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    .login-container {
-      background: var(--panel-bg);
-      border-radius: var(--radius);
-      padding: 40px;
-      width: 400px;
-      border: 1px solid var(--panel-border);
-    }
-    .login-header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    .login-header h3 {
-      color: #fff;
-      font-weight: 700;
-      font-size: 1.25rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-    .login-header p {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-    }
-  </style>
-</head>
-<body>
-  <div class="login-container">
-    <div class="login-header">
-      <h3>SECURE ACCESS</h3>
-      <p>AUTHENTICATION REQUIRED</p>
-    </div>
-    
+{% extends "base.html" %}
+
+{% block title %}Secure Access | Aster Capital{% endblock %}
+
+{% block content %}
+<section class="auth-section">
+  <div class="auth-card">
+    <span class="eyebrow">Secure Access</span>
+    <h1>Enter the console key</h1>
+    <p>Authentication is required before opening the SQL inspection workspace.</p>
+
     {% if error %}
-      <div class="mb-4 font-mono text-down p-3" style="background:#1f1616; border:1px solid #4a1c1c; border-radius:4px; font-size:0.85rem">
-        > ERROR: {{ error }}
-      </div>
+      <div class="alert-panel alert-panel-danger mt-4">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="{{ url_for('key_check') }}">
+    <form method="post" action="{{ url_for('key_check') }}" class="mt-4">
       <div class="form-group mb-4">
-        <label for="key" class="form-label">ACCESS KEY</label>
-        <input type="password" name="key" id="key" class="form-control font-mono" placeholder="••••••••" required>
+        <label for="access_key" class="form-label">Access key</label>
+        <input type="password" name="access_key" id="access_key" class="form-control font-mono form-control-lg" placeholder="Enter credential" required>
       </div>
-      <button type="submit" class="btn btn-primary w-100 font-mono">AUTHORIZE</button>
+      <button type="submit" class="btn btn-primary btn-pill w-100">Authorize</button>
     </form>
-    <div class="mt-4 text-center">
-      <a href="{{ url_for('index') }}" class="text-muted font-mono" style="font-size:0.75rem;">← RETURN TO DASHBOARD</a>
+
+    <div class="auth-footer">
+      <a href="{{ url_for('index') }}">Return to dashboard</a>
     </div>
   </div>
-</body>
-</html>
+</section>
+{% endblock %}

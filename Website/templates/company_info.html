@@ -1,155 +1,154 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ company_data.longname }} - Stock Analysis</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-</head>
-<body>
+{% extends "base.html" %}
 
-<nav class="navbar navbar-expand-lg px-4">
-  <a class="navbar-brand" href="{{ url_for('index') }}">Stock Analysis Portal</a>
-  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-    <span class="navbar-toggler-icon"></span>
-  </button>
-  <div class="collapse navbar-collapse" id="navbarNav">
-    <ul class="navbar-nav ms-auto">
-      <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Dashboard</a></li>
-    </ul>
-  </div>
-</nav>
+{% block title %}{{ company_data.longname if company_data else company_name }} | Aster Capital{% endblock %}
 
-<div class="container-fluid mt-4 px-4 pb-5">
-  <div class="d-flex justify-content-between align-items-end mb-4">
-    <div class="company-name-box">
-      <div class="text-muted font-mono mb-1" style="font-size:0.8rem; letter-spacing:0.05em">TICKER VIEW</div>
-      <h1 class="mb-0">{{ company_data.longname }}</h1>
-    </div>
-    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm font-mono">← BACK</a>
-  </div>
+{% block head_extra %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
 
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="mini-box flex-column d-flex justify-content-center">
-        <h6>MARKET CAP</h6>
-        <p>₹ {{ "{:,.2f}".format(company_data.marketcap / 1e12) }}T</p>
+{% block content %}
+<section class="section-pad company-hero-wrap">
+  <div class="container-xxl">
+    <div class="company-hero">
+      <div>
+        <span class="eyebrow">Company Intelligence</span>
+        <h1>{{ company_data.longname if company_data else company_name }}</h1>
+        <p>{{ company_name }} market view with price history, profitability snapshot, and latest modeled close.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-primary btn-pill">Back to dashboard</a>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="mini-box flex-column d-flex justify-content-center">
-        <h6>INDUSTRY</h6>
-        <p style="font-size:1.1rem; font-weight:500;" class="mt-1">{{ company_data.sector }}</p>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="mini-box flex-column d-flex justify-content-center">
-        <h6>PROFIT MARGIN</h6>
-        <p class="{{ 'text-up' if company_data.profitmargins > 0 else 'text-down' }}">{{ "{:.2%}".format(company_data.profitmargins) }}</p>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="mini-box flex-column d-flex justify-content-center">
-        <h6>52-WEEK CHG</h6>
-        <p class="{{ 'text-up' if company_data.week52change > 0 else 'text-down' }}">{{ "{:.2%}".format(company_data.week52change) }}</p>
-      </div>
+
+    <div class="company-stat-grid">
+      <article class="stat-card">
+        <span class="metric-label">Market cap</span>
+        <strong>{% if company_data and company_data.marketcap %}Rs {{ "{:,.2f}".format(company_data.marketcap / 1e12) }}T{% else %}N/A{% endif %}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="metric-label">Sector</span>
+        <strong>{{ company_data.sector if company_data and company_data.sector else "N/A" }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="metric-label">Profit margin</span>
+        <strong class="{{ 'status-up' if company_data and company_data.profitmargins and company_data.profitmargins > 0 else 'status-down' if company_data and company_data.profitmargins is not none else '' }}">{% if company_data and company_data.profitmargins is not none %}{{ "{:.2%}".format(company_data.profitmargins) }}{% else %}N/A{% endif %}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="metric-label">52-week change</span>
+        <strong class="{{ 'status-up' if company_data and company_data.week52change and company_data.week52change > 0 else 'status-down' if company_data and company_data.week52change is not none else '' }}">{% if company_data and company_data.week52change is not none %}{{ "{:.2%}".format(company_data.week52change) }}{% else %}N/A{% endif %}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="metric-label">Latest prediction</span>
+        <strong>{{ latest_prediction.closing_price }}</strong>
+        <small>{{ latest_prediction.date }}</small>
+      </article>
+      <article class="stat-card">
+        <span class="metric-label">Modeled vs actual</span>
+        <strong>{{ prediction_bar_data.predicted }} / {{ prediction_bar_data.actual }}</strong>
+        <small>Predicted close / Actual close</small>
+      </article>
     </div>
   </div>
+</section>
 
-  <div class="row">
-    <div class="col-12 mb-4">
-      <div class="card">
-        <div class="card-header">
-          <h5 class="card-title">CANDLESTICK PRICE HISTORY</h5>
+<section class="section-pad pt-0">
+  <div class="container-xxl">
+    <div class="analytics-grid">
+      <div class="panel-card chart-panel chart-panel-lg">
+        <div class="panel-header">
+          <span class="eyebrow">Price History</span>
+          <h2>Candlestick market structure</h2>
         </div>
-        <div class="card-body p-0">
-          <div id="candleChart" style="width:100%; height:450px;"></div>
-        </div>
+        <div id="candleChart" class="chart-frame chart-frame-tall"></div>
       </div>
-    </div>
 
-    <div class="col-12 mb-4">
-      <div class="card">
-        <div class="card-header">
-          <h5 class="card-title">ACTUAL VS PREDICTED TREND</h5>
+      <div class="panel-card chart-panel">
+        <div class="panel-header">
+          <span class="eyebrow">Latest Comparison</span>
+          <h2>Predicted vs actual close</h2>
         </div>
-        <div class="card-body p-0">
-          <div id="predictionChart" style="width:100%; height:350px;"></div>
+        <div id="predictionChart" class="chart-frame"></div>
+        <div class="comparison-note">
+          <div>
+            <span>Predicted</span>
+            <strong>{{ prediction_bar_data.predicted }}</strong>
+          </div>
+          <div>
+            <span>Actual</span>
+            <strong>{{ prediction_bar_data.actual }}</strong>
+          </div>
         </div>
       </div>
     </div>
   </div>
+</section>
+{% endblock %}
 
-</div>
-
+{% block scripts %}
 <script>
-  // Candlestick Chart (Plotly customized for Dark Theme)
-  const candleData = {{ candle_chart_data | tojson | safe if candle_chart_data else "[]" }};
-  if(candleData.length > 0) {
-    const xValues = candleData.map(d => d.x);
+const candleData = {{ candle_chart_data | tojson | safe if candle_chart_data else "[]" }};
+if(candleData.length > 0) {
+  const traceCandle = {
+    x: candleData.map(d => d.x),
+    open: candleData.map(d => d.o),
+    high: candleData.map(d => d.h),
+    low: candleData.map(d => d.l),
+    close: candleData.map(d => d.c),
+    type: 'candlestick',
+    increasing: { line: { color: '#0f9f76', width: 2 }, fillcolor: '#0f9f76' },
+    decreasing: { line: { color: '#cb4b4b', width: 2 }, fillcolor: '#cb4b4b' },
+    hoverinfo: 'x+open+high+low+close',
+    showlegend: false
+  };
 
-    const traceCandle = {
-        x: xValues,
-        open: candleData.map(d => d.o),
-        high: candleData.map(d => d.h),
-        low: candleData.map(d => d.l),
-        close: candleData.map(d => d.c),
-        type: 'candlestick',
-        increasing: { line: { color: '#10b981', width: 2 }, fillcolor: '#10b981' },
-        decreasing: { line: { color: '#ef4444', width: 2 }, fillcolor: '#ef4444' },
-        hoverinfo: 'x+open+high+low+close',
-        showlegend: false,
-        xaxis: 'x',
-        yaxis: 'y'
-    };
+  const layoutCandle = {
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    margin: { t: 10, r: 20, l: 50, b: 40 },
+    xaxis: {
+      gridcolor: '#dbe4f0',
+      tickfont: { color: '#6c7a91', family: 'JetBrains Mono' },
+      rangeslider: { visible: false }
+    },
+    yaxis: {
+      gridcolor: '#dbe4f0',
+      tickfont: { color: '#6c7a91', family: 'JetBrains Mono' }
+    }
+  };
 
-    const layoutCandle = {
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        margin: { t: 20, r: 20, l: 50, b: 40 },
-        xaxis: {
-            gridcolor: '#232a35',
-            tickfont: { color: '#94a3b8', family: 'JetBrains Mono' },
-            rangeslider: { visible: false }
-        },
-        yaxis: {
-            gridcolor: '#232a35',
-            tickfont: { color: '#94a3b8', family: 'JetBrains Mono' }
-        },
-    };
+  Plotly.newPlot('candleChart', [traceCandle], layoutCandle, {responsive: true});
+} else {
+  document.getElementById('candleChart').innerHTML = "<div class='chart-empty'>No price history available.</div>";
+}
 
-    Plotly.newPlot('candleChart', [traceCandle], layoutCandle, {responsive: true});
-  }
+const comparisonData = {{ prediction_bar_data | tojson | safe }};
+if (comparisonData) {
+  const comparisonTrace = {
+    x: ['Predicted', 'Actual'],
+    y: [comparisonData.predicted, comparisonData.actual],
+    type: 'bar',
+    marker: {
+      color: ['#1f4fd1', '#0f9f76'],
+      line: { color: ['#163b9b', '#0c805f'], width: 1.4 }
+    },
+    hovertemplate: '%{x}: %{y}<extra></extra>'
+  };
 
-  // Prediction Line Chart (Plotly customized for Dark Theme)
-  const predData = {{ prediction_data | tojson | safe if prediction_data else "[]" }};
-  if (predData.length > 0) {
-    const dt = predData.map(d => d.Date);
-    const act = predData.map(d => d.Actual);
-    const pred = predData.map(d => d.Predicted);
+  const comparisonLayout = {
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    margin: { t: 10, r: 10, l: 50, b: 40 },
+    xaxis: { tickfont: { color: '#425066', family: 'IBM Plex Sans' } },
+    yaxis: {
+      range: [comparisonData.min_y, comparisonData.max_y],
+      gridcolor: '#dbe4f0',
+      tickfont: { color: '#6c7a91', family: 'JetBrains Mono' }
+    }
+  };
 
-    const traceAct = {
-        x: dt, y: act, type: 'scatter', mode: 'lines',
-        name: 'ACTUAL', line: { color: '#94a3b8', width: 2 }
-    };
-    const tracePred = {
-        x: dt, y: pred, type: 'scatter', mode: 'lines',
-        name: 'PREDICTED', line: { color: '#3b82f6', width: 2 }
-    };
-
-    const layoutLine = {
-        paper_bgcolor: 'transparent',
-        plot_bgcolor: 'transparent',
-        margin: { t: 20, r: 20, l: 50, b: 40 },
-        legend: { font: { color: '#94a3b8', family: 'JetBrains Mono', size: 10 }, orientation: 'h', y: 1.1 },
-        xaxis: { gridcolor: '#232a35', tickfont: { color: '#94a3b8', family: 'JetBrains Mono' } },
-        yaxis: { gridcolor: '#232a35', tickfont: { color: '#94a3b8', family: 'JetBrains Mono' } },
-    };
-
-    Plotly.newPlot('predictionChart', [traceAct, tracePred], layoutLine, {responsive: true});
-  }
+  Plotly.newPlot('predictionChart', [comparisonTrace], comparisonLayout, {responsive: true});
+} else {
+  document.getElementById('predictionChart').innerHTML = "<div class='chart-empty'>No prediction comparison available.</div>";
+}
 </script>
-</body>
-</html>
+{% endblock %}

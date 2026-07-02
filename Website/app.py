@@ -101,7 +101,8 @@ def run_program():
         'final': 'Final_Analysis.py',
         'news': 'News_Extractor.py',
         'sentiment': 'Sentiment_Analyzer.py',
-        'stockdata': 'Stock_Data_Daily.py'
+        'stockdata': 'Stock_Data_Daily.py',
+        'stockdata5y': 'Stock_Data_5Y.py'
     }
     
     target_script = script_mapping.get(program_id)
