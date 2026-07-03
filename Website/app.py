@@ -11,13 +11,14 @@ from typing import Optional
 from sqlalchemy import create_engine, text
 import subprocess
 import os 
-import json
 import uuid
 import smtplib
 import pandas as pd
 import time
 import yfinance as yf
 import logging
+import threading
+import sys
 import threading
 
 logging.basicConfig(level=logging.DEBUG)
@@ -329,5 +330,66 @@ def live_price(ticker):
         for _, row in data.iterrows()
     ])
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+def execute_scripts_sequentially(script_paths):
+    """
+    Runs a list of Python scripts one by one in the background.
+    Output goes directly to Render Logs in real-time.
+    """
+    print(f"\n[BACKGROUND THREAD] Starting pipeline: {len(script_paths)} scripts...", flush=True)
+    
+    for script in script_paths:
+        print(f"\n---> [STARTING] {script} <---", flush=True)
+        try:
+            subprocess.run([sys.executable, script], check=True)
+            print(f"---> [SUCCESS] Finished {script} <---", flush=True)
+        
+        except subprocess.CalledProcessError as e:
+            print(f"\n!!! [CRITICAL ERROR] Failed while running {script} !!!", flush=True)
+            print("Pipeline halted. Check logs above for the specific error.", flush=True)
+            break
+            
+        except Exception as e:
+            print(f"\n!!! [UNEXPECTED ERROR] {e} !!!", flush=True)
+            break
+
+    print("\n[BACKGROUND THREAD] Pipeline Execution Completed.", flush=True)
+
+@app.route('/admin/trigger-daily', methods=['POST', 'GET'])
+def trigger_daily_pipeline():
+    """Triggers the daily update workflow"""
+    scripts_to_run = [
+        "Stock Analysis/Stock_Data_Daily.py",
+        "Stock Analysis/Company_Data.py",
+        "Stock Analysis/News_Extractor.py",
+        "Stock Analysis/Sentiment_Analyzer.py",
+        "Stock Analysis/Actual_vs_Prediction.py",
+        "Stock Analysis/Final_Analysis.py"
+    ]
+    
+    thread = threading.Thread(target=execute_scripts_sequentially, args=(scripts_to_run,))
+    thread.daemon = True 
+    thread.start()
+    
+    return jsonify({
+        "status": "success", 
+        "message": "Daily Pipeline started in the cloud! You can safely close your laptop. Check Render logs to watch the progress."
+    }), 202
+
+@app.route('/admin/trigger-5y', methods=['POST', 'GET'])
+def trigger_5y_pipeline():
+    """Triggers the historical data download"""
+    scripts_to_run = [
+        "Stock Analysis/Stock_Data_5Y.py"
+    ]
+    
+    thread = threading.Thread(target=execute_scripts_sequentially, args=(scripts_to_run,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        "status": "success", 
+        "message": "5Y Data fetching started in the background. Check Render logs."
+    }), 202
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')
