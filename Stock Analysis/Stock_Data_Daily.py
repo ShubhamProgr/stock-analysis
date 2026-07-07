@@ -22,8 +22,6 @@ if not DATABASE_URL:
         f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
     )
 
-excel_output_path = os.getenv("STOCK_DATA", os.path.join(os.environ.get("USERPROFILE",""), "Documents", "Stock_Data.xlsx"))
-
 tickers = [
     'RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS',
     'KOTAKBANK.NS', 'HCLTECH.NS', 'LT.NS', 'ITC.NS', 'SBIN.NS',
@@ -47,112 +45,106 @@ tickers = [
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
+# 1. Ensure the production table uses clean lowercase names matching your earlier logs
 with engine.begin() as conn:
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS stock_data (
-            "Ticker" TEXT NOT NULL,
-            "Date" DATE NOT NULL,
-            "Open" DOUBLE PRECISION,
-            "High" DOUBLE PRECISION,
-            "Low" DOUBLE PRECISION,
-            "Close" DOUBLE PRECISION,
-            "Index" DOUBLE PRECISION,
-            "Volume" BIGINT,
-            PRIMARY KEY ("Ticker", "Date")
+            ticker TEXT NOT NULL,
+            date DATE NOT NULL,
+            open DOUBLE PRECISION,
+            high DOUBLE PRECISION,
+            low DOUBLE PRECISION,
+            close DOUBLE PRECISION,
+            index DOUBLE PRECISION DEFAULT 0.0,
+            volume BIGINT,
+            PRIMARY KEY (ticker, date)
         )
     """))
 
 def download_with_retry(ticker, period='2d', max_retries=3, initial_wait=2):
-    """
-    Download stock data with exponential backoff retry logic.
-    
-    Args:
-        ticker: Stock ticker symbol
-        period: Time period for download (default: '2d')
-        max_retries: Maximum number of retry attempts (default: 3)
-        initial_wait: Initial wait time in seconds (default: 2)
-    
-    Returns:
-        DataFrame with stock data or None if all retries failed
-    """
     for attempt in range(max_retries):
         try:
-            data = yf.download(ticker, period=period, auto_adjust=False)
+            # Added a tiny delay to respect yfinance limits
+            time.sleep(5) 
+            data = yf.download(ticker, period=period, auto_adjust=False, progress=False)
             return data
         except Exception as e:
             if attempt < max_retries - 1:
-                wait_time = initial_wait * (2 ** attempt)  # Exponential backoff
-                print(f"Retry {attempt + 1}/{max_retries - 1} for {ticker} after {wait_time}s (Error: {str(e)[:60]}...)")
+                wait_time = initial_wait * (2 ** attempt)
+                print(f"Retry {attempt + 1} for {ticker} after {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                print(f" Failed to fetch data for {ticker} after {max_retries} attempts: {e}")
+                print(f"Failed to fetch data for {ticker}: {e}")
                 return None
 
+# Collect all data into a local list first
+all_data_list = []
 
-all_data = pd.DataFrame()
-
+print(f"Starting data download for {len(tickers)} tickers...")
 for ticker in tickers:
-    print(f"Downloading recent data for {ticker}")
-    data = download_with_retry(ticker, period='2d')
+    data = download_with_retry(ticker, period='10y')
     
     if data is None or data.empty:
-        print(f"No data for {ticker}")
         continue
     
-    try:
-        if data is None:
-            print(f"No data retrieved for {ticker}")
-            continue
-            
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        data = data.reset_index()
-        data['Ticker'] = ticker
-        data['Date'] = pd.to_datetime(data['Date']).dt.date
+    # Flatten multi-index columns if present
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+        
+    data = data.reset_index()
+    data['ticker'] = ticker
+    
+    # Map raw headers to match lowercase database columns exactly
+    data = data.rename(columns={
+        'Date': 'date',
+        'Open': 'open',
+        'High': 'high',
+        'Low': 'low',
+        'Close': 'close',
+        'Volume': 'volume'
+    })
+    
+    # Filter only the columns we actually want to keep
+    keep_cols = ['ticker', 'date', 'open', 'high', 'low', 'close', 'volume']
+    data = data[[col for col in keep_cols if col in data.columns]]
+    data['index'] = 0.0
+    
+    all_data_list.append(data)
+    print(f"Downloaded {ticker}")
 
-        for col in ["Open", "High", "Low", "Close", "Volume"]:
-            if col in data.columns:
-                data[col] = pd.to_numeric(data[col], errors='coerce').fillna(0)
+# 2. Bulk process everything in memory and upsert in batches
+if all_data_list:
+    final_df = pd.concat(all_data_list, ignore_index=True)
+    
+    # Sanitize data types
+    final_df['date'] = pd.to_datetime(final_df['date']).dt.date
+    for col in ['open', 'high', 'low', 'close']:
+        final_df[col] = pd.to_numeric(final_df[col], errors='coerce').fillna(0.0)
+    final_df['volume'] = pd.to_numeric(final_df['volume'], errors='coerce').fillna(0).astype(int)
 
-        with engine.begin() as conn:
-            for _, row in data.iterrows():
-                try:
-                    conn.execute(text("""
-                        INSERT INTO stock_data ("Ticker", "Date", "Open", "High", "Low", "Close", "Index", "Volume")
-                        VALUES (:ticker, :date, :open, :high, :low, :close, :index, :volume)
-                        ON CONFLICT ("Ticker", "Date") DO UPDATE SET
-                            "Open" = EXCLUDED."Open",
-                            "High" = EXCLUDED."High",
-                            "Low" = EXCLUDED."Low",
-                            "Close" = EXCLUDED."Close",
-                            "Index" = EXCLUDED."Index",
-                            "Volume" = EXCLUDED."Volume"
-                    """), {
-                        "ticker": row['Ticker'],
-                        "date": row['Date'],
-                        "open": float(row.get('Open', 0.0)),
-                        "high": float(row.get('High', 0.0)),
-                        "low": float(row.get('Low', 0.0)),
-                        "close": float(row.get('Close', 0.0)),
-                        "index": 0.0,
-                        "volume": int(row.get('Volume', 0)),
-                    })
-                except Exception as e:
-                    print(f" Error inserting {ticker} {row.get('Date')}: {e}")
+    print(f"Total rows to sync: {len(final_df)}. Performing bulk upsert...")
 
-        all_data = pd.concat([all_data, data], ignore_index=True)
-        print(f" Inserted data for {ticker}")
-
-    except Exception as e:
-        print(f" Error processing {ticker}: {e}")
-
-if isinstance(all_data.columns, pd.MultiIndex):
-    all_data.columns = [' '.join(col).strip() for col in all_data.columns.values]
-
-all_data.reset_index(drop=True, inplace=True)
-
-try:
-    all_data.to_excel(excel_output_path, index=False)
-    print(f" Excel file saved at: {excel_output_path}")
-except Exception as e:
-    print(f" Excel saving error: {e}")
+    # Upload using a staging table block to handle ON CONFLICT instantly
+    with engine.begin() as conn:
+        # Create an exact temp table duplicate
+        conn.execute(text("CREATE TEMP TABLE temp_stock_data (LIKE stock_data INCLUDING DEFAULTS) ON COMMIT DROP;"))
+        
+        # Stream the data in bulk via pandas to the temporary staging table
+        final_df.to_sql('temp_stock_data', con=conn, if_exists='append', index=False, method='multi', chunksize=10000)
+        
+        # Use Postgres high-performance internal upsert from staging to production
+        conn.execute(text("""
+            INSERT INTO stock_data (ticker, date, open, high, low, close, index, volume)
+            SELECT ticker, date, open, high, low, close, index, volume FROM temp_stock_data
+            ON CONFLICT (ticker, date) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                index = EXCLUDED.index,
+                volume = EXCLUDED.volume;
+        """))
+        
+    print("Database sync completed successfully.")
+else:
+    print("No data collected to upload.")

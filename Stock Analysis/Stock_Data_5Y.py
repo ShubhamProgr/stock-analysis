@@ -65,7 +65,7 @@ def download_with_retry(ticker, period='10y', max_retries=3, initial_wait=2):
     for attempt in range(max_retries):
         try:
             # Added a tiny delay to respect yfinance limits
-            time.sleep(0.2) 
+            time.sleep(5) 
             data = yf.download(ticker, period=period, auto_adjust=False, progress=False)
             return data
         except Exception as e:
