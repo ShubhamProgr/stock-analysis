@@ -61,12 +61,14 @@ with engine.begin() as conn:
         )
     """))
 
-def download_with_retry(ticker, period='2d', max_retries=3, initial_wait=2):
+def download_with_retry(ticker, period='3d', max_retries=3, initial_wait=2):
     for attempt in range(max_retries):
         try:
-            # Added a tiny delay to respect yfinance limits
             time.sleep(5) 
             data = yf.download(ticker, period=period, auto_adjust=False, progress=False)
+            if data is None or data.empty:
+                raise ValueError("Empty data returned. Likely rate-limited.")
+                
             return data
         except Exception as e:
             if attempt < max_retries - 1:
