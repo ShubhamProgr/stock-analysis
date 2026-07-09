@@ -131,8 +131,7 @@ if all_data_list:
         # Create an exact temp table duplicate
         conn.execute(text("CREATE TEMP TABLE temp_stock_data (LIKE stock_data INCLUDING DEFAULTS) ON COMMIT DROP;"))
         
-        # Stream the data in bulk via pandas to the temporary staging table
-        final_df.to_sql('temp_stock_data', con=conn, if_exists='append', index=False, method='multi', chunksize=10000)
+        final_df.to_sql('temp_stock_data', con=conn, if_exists='append', index=False, method='multi', chunksize=5000)
         
         # Use Postgres high-performance internal upsert from staging to production
         conn.execute(text("""
