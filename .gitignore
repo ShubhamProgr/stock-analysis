@@ -5,3 +5,8 @@
 .gitignore
 data/*.xlsx
 package-lock.json
+node_modules/
+.next/
+out/
+build/ 
+.env*.local

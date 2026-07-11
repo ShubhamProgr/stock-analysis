@@ -1,18 +1,21 @@
-FROM python:3.10-slim
-
-ENV PYTHONUNBUFFERED=1
+FROM node:20-slim
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
-RUN mkdir -p /app/data
+COPY Website/package.json Website/package-lock.json* ./Website/
+RUN cd Website && npm install
 
-EXPOSE 5000
+COPY . .
+RUN cd Website && npm run build
 
-CMD ["python", "Website/app.py"]
-
-COPY . /app
+EXPOSE 3000
+CMD ["npm", "start", "--prefix", "Website"]

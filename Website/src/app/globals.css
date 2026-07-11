@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-color: #3a4457 #10141c;
+}
+
+.panel {
+  @apply rounded-xl border border-ink-600/60 bg-ink-800/70 shadow-panel;
+}
+
+.ticker-ribbon {
+  @apply overflow-hidden border-b border-ink-600/60 bg-ink-950;
+}
+
+.ticker-ribbon__track {
+  @apply flex w-max animate-marquee gap-10 whitespace-nowrap py-2 font-mono text-xs;
+}
+
+.stat-up {
+  @apply text-signal-up;
+}
+
+.stat-down {
+  @apply text-signal-down;
+}
+
+:focus-visible {
+  outline: 2px solid #f2b134;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-ribbon__track {
+    animation: none;
+  }
+}
