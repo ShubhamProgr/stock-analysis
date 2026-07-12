@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, ColorType, CandlestickSeries } from "lightweight-charts";
+import { createChart, ColorType} from "lightweight-charts";
 
 export type Candle = { time: string; open: number; high: number; low: number; close: number };
 
@@ -27,7 +27,7 @@ export function CandlestickChart({ data }: { data: Candle[] }) {
       rightPriceScale: { borderColor: "#262e3d" }
     });
 
-    const series = chart.addSeries(CandlestickSeries, {
+    const series = chart.addCandlestickSeries({
       upColor: "#3ddc97",
       downColor: "#ff6b6b",
       borderVisible: false,
