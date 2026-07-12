@@ -2,13 +2,19 @@ name: Daily Stock Pipeline
 
 on:
   schedule:
-    - cron: '0 11 * * 1-5'  
+    - cron: '30 1 * * 1-5'
+  
   workflow_dispatch: 
 
 jobs:
   run-data-pipeline:
     runs-on: ubuntu-latest
     
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEWS_FILE: "news_articles.xlsx" 
+      SENTIMENT_OUTPUT_FILE: "sentiment_analysis.xlsx"
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -17,7 +23,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip' 
+          cache: 'pip'
 
       - name: Install Dependencies
         run: pip install -r requirements.txt
@@ -25,17 +31,17 @@ jobs:
       - name: Create Documents Folder
         run: mkdir -p ~/Documents
 
-      - name: Fetch Daily Stock Data
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: 1. Extract Latest News
+        run: python "Stock Analysis/News_Extractor.py"
+
+      - name: 2. Analyze Sentiment (FinBERT)
+        run: python "Stock Analysis/Sentiment_Analyzer.py"
+
+      - name: 3. Fetch Daily Stock Data
         run: python "Stock Analysis/Stock_Data_Daily.py"
 
-      - name: Run ML Predictions
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: 4. Run ML Predictions (Random Forest)
         run: python "Stock Analysis/Final_Analysis.py"
 
-      - name: Reconcile Actual vs Predicted
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: 5. Reconcile Actual vs Predicted
         run: python "Stock Analysis/Actual_vs_Prediction.py"
