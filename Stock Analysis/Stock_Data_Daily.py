@@ -4,7 +4,7 @@ import yfinance as yf
 import pandas as pd
 from sqlalchemy import create_engine, text
 import time
-import gc 
+import gc
 
 load_dotenv()
 
@@ -55,7 +55,6 @@ with engine.begin() as conn:
             high DOUBLE PRECISION,
             low DOUBLE PRECISION,
             close DOUBLE PRECISION,
-            index DOUBLE PRECISION DEFAULT 0.0,
             volume BIGINT,
             PRIMARY KEY (ticker, date)
         )
@@ -64,14 +63,14 @@ with engine.begin() as conn:
 def download_with_retry(ticker, period='3d', max_retries=3, initial_wait=2):
     for attempt in range(max_retries):
         try:
-            time.sleep(5) 
+            time.sleep(5)
             # Added timeout=10 to prevent hanging
             data = yf.download(ticker, period=period, auto_adjust=False, progress=False, timeout=10)
-            
+
             # Force an error if yfinance returns empty data due to a rate limit
             if data is None or data.empty:
                 raise ValueError("Empty data returned. Likely rate-limited.")
-                
+
             return data
         except Exception as e:
             if attempt < max_retries - 1:
@@ -86,17 +85,20 @@ all_data_list = []
 
 print(f"Starting data download for {len(tickers)} tickers...")
 for ticker in tickers:
-    data = download_with_retry(ticker, period='10y')
-    
+    # NOTE: fixed to pull a short 3-day window (this used to accidentally
+    # request period='10y' every run, same as the 5Y script -- slow and
+    # pointless for a "daily" sync since 10 years of history doesn't change).
+    data = download_with_retry(ticker, period='3d')
+
     if data is None or data.empty:
         continue
-    
+
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
-        
+
     data = data.reset_index()
     data['ticker'] = ticker
-    
+
     data = data.rename(columns={
         'Date': 'date',
         'Open': 'open',
@@ -105,45 +107,40 @@ for ticker in tickers:
         'Close': 'close',
         'Volume': 'volume'
     })
-    
+
     keep_cols = ['ticker', 'date', 'open', 'high', 'low', 'close', 'volume']
     data = data[[col for col in keep_cols if col in data.columns]]
-    data['index'] = 0.0
-    
+
     all_data_list.append(data)
     print(f"Downloaded {ticker}")
 
 if all_data_list:
     final_df = pd.concat(all_data_list, ignore_index=True)
-    
+
     final_df['date'] = pd.to_datetime(final_df['date']).dt.date
     for col in ['open', 'high', 'low', 'close']:
         final_df[col] = pd.to_numeric(final_df[col], errors='coerce').fillna(0.0)
     final_df['volume'] = pd.to_numeric(final_df['volume'], errors='coerce').fillna(0).astype(int)
 
-    print(f"Total rows to sync: {len(final_df)}. Performing bulk upsert...")
+    print(f"Total rows fetched: {len(final_df)}. Inserting any new (ticker, date) rows...")
 
     with engine.begin() as conn:
         conn.execute(text("CREATE TEMP TABLE temp_stock_data (LIKE stock_data INCLUDING DEFAULTS) ON COMMIT DROP;"))
-        
+
         # Lowered chunksize to 5000 to prevent PostgreSQL parameter crash
         final_df.to_sql('temp_stock_data', con=conn, if_exists='append', index=False, method='multi', chunksize=5000)
-        
+
+        # Skip-duplicates: if a (ticker, date) row already exists, leave it
+        # alone and move on. Only rows that don't exist yet get inserted.
         conn.execute(text("""
-            INSERT INTO stock_data (ticker, date, open, high, low, close, index, volume)
-            SELECT ticker, date, open, high, low, close, index, volume FROM temp_stock_data
-            ON CONFLICT (ticker, date) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                index = EXCLUDED.index,
-                volume = EXCLUDED.volume;
+            INSERT INTO stock_data (ticker, date, open, high, low, close, volume)
+            SELECT ticker, date, open, high, low, close, volume FROM temp_stock_data
+            ON CONFLICT (ticker, date) DO NOTHING;
         """))
-        
-    print("Database sync completed successfully.")    
+
+    print("Database sync completed successfully.")
     del final_df
     del all_data_list
-    gc.collect() 
+    gc.collect()
 else:
     print("No data collected to upload.")
