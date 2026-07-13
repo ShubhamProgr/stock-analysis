@@ -10,3 +10,7 @@ psycopg2-binary
 scikit-learn
 numpy
 openpyxl
+beautifulsoup4
+feedparser
+transformers
+torch
