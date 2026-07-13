@@ -13,11 +13,11 @@ type Row = {
 export async function GET() {
   try {
     const rows = await query<Row>(
-      `select ticker, company, predicted_closing_price, actual_closing_price
+      `select "Ticker" as ticker, "Company" as company, "Predicted_Closing_Price" as predicted_closing_price, "Actual_Closing_Price" as actual_closing_price
        from prediction_vs_actual
-       where date = (select max(date) from prediction_vs_actual)
-         and actual_closing_price is not null
-         and actual_closing_price <> 0`
+       where "Date" = (select max("Date") from prediction_vs_actual)
+         and "Actual_Closing_Price" is not null
+         and "Actual_Closing_Price" <> 0`
     );
 
     const movers = rows.map((r) => ({

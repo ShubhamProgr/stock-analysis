@@ -20,17 +20,17 @@ type PredictionRow = {
 
 async function getPredictions() {
   return query<PredictionRow>(
-    `select ticker, company, predicted_closing_price, prediction_date
+    `select "Ticker" as ticker, "Company" as company, "Predicted_Closing_Price" as predicted_closing_price, "Prediction_Date" as prediction_date
      from final_analysis
-     where prediction_date = (select max(prediction_date) from final_analysis)
-     order by predicted_closing_price desc
+     where "Prediction_Date" = (select max("Prediction_Date") from final_analysis)
+     order by "Predicted_Closing_Price" desc
      limit 8`
   ).catch(() => [] as PredictionRow[]);
 }
 
 async function getLatestRunDate() {
   return queryOne<{ prediction_date: string }>(
-    `select max(prediction_date) as prediction_date from final_analysis`
+    `select max("Prediction_Date") as prediction_date from final_analysis`
   ).catch(() => null);
 }
 
