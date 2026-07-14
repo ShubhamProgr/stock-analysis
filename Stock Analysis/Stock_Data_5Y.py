@@ -49,14 +49,14 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 with engine.begin() as conn:
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS stock_data (
-            ticker TEXT NOT NULL,
-            date DATE NOT NULL,
-            open DOUBLE PRECISION,
-            high DOUBLE PRECISION,
-            low DOUBLE PRECISION,
-            close DOUBLE PRECISION,
-            volume BIGINT,
-            PRIMARY KEY (ticker, date)
+            "Ticker" TEXT NOT NULL,
+            "Date" DATE NOT NULL,
+            "Open" DOUBLE PRECISION,
+            "High" DOUBLE PRECISION,
+            "Low" DOUBLE PRECISION,
+            "Close" DOUBLE PRECISION,
+            "Volume" BIGINT,
+            PRIMARY KEY ("Ticker", "Date")
         )
     """))
 
@@ -85,9 +85,7 @@ all_data_list = []
 
 print(f"Starting data download for {len(tickers)} tickers...")
 for ticker in tickers:
-    # NOTE: fixed to pull a short 3-day window (this used to accidentally
-    # request period='10y' every run, same as the 5Y script -- slow and
-    # pointless for a "daily" sync since 10 years of history doesn't change).
+    # NOTE: fixed to pull a short 3-day window
     data = download_with_retry(ticker, period='3d')
 
     if data is None or data.empty:
@@ -97,18 +95,11 @@ for ticker in tickers:
         data.columns = data.columns.get_level_values(0)
 
     data = data.reset_index()
-    data['ticker'] = ticker
+    # Add capitalized Ticker column
+    data['Ticker'] = ticker
 
-    data = data.rename(columns={
-        'Date': 'date',
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Close': 'close',
-        'Volume': 'volume'
-    })
-
-    keep_cols = ['ticker', 'date', 'open', 'high', 'low', 'close', 'volume']
+    # Keep exactly the capitalized columns needed
+    keep_cols = ['Ticker', 'Date', 'Open', 'High', 'Low', 'Close', 'Volume']
     data = data[[col for col in keep_cols if col in data.columns]]
 
     all_data_list.append(data)
@@ -117,10 +108,11 @@ for ticker in tickers:
 if all_data_list:
     final_df = pd.concat(all_data_list, ignore_index=True)
 
-    final_df['date'] = pd.to_datetime(final_df['date']).dt.date
-    for col in ['open', 'high', 'low', 'close']:
+    # Process using the capitalized column names
+    final_df['Date'] = pd.to_datetime(final_df['Date']).dt.date
+    for col in ['Open', 'High', 'Low', 'Close']:
         final_df[col] = pd.to_numeric(final_df[col], errors='coerce').fillna(0.0)
-    final_df['volume'] = pd.to_numeric(final_df['volume'], errors='coerce').fillna(0).astype(int)
+    final_df['Volume'] = pd.to_numeric(final_df['Volume'], errors='coerce').fillna(0).astype(int)
 
     print(f"Total rows fetched: {len(final_df)}. Inserting any new (ticker, date) rows...")
 
@@ -130,12 +122,12 @@ if all_data_list:
         # Lowered chunksize to 5000 to prevent PostgreSQL parameter crash
         final_df.to_sql('temp_stock_data', con=conn, if_exists='append', index=False, method='multi', chunksize=5000)
 
-        # Skip-duplicates: if a (ticker, date) row already exists, leave it
-        # alone and move on. Only rows that don't exist yet get inserted.
+        # Skip-duplicates: if a (Ticker, Date) row already exists, leave it alone.
+        # Ensure all columns are wrapped in double quotes for Postgres case sensitivity.
         conn.execute(text("""
-            INSERT INTO stock_data (ticker, date, open, high, low, close, volume)
-            SELECT ticker, date, open, high, low, close, volume FROM temp_stock_data
-            ON CONFLICT (ticker, date) DO NOTHING;
+            INSERT INTO stock_data ("Ticker", "Date", "Open", "High", "Low", "Close", "Volume")
+            SELECT "Ticker", "Date", "Open", "High", "Low", "Close", "Volume" FROM temp_stock_data
+            ON CONFLICT ("Ticker", "Date") DO NOTHING;
         """))
 
     print("Database sync completed successfully.")
