@@ -258,21 +258,56 @@ for source, url in rss_feeds.items():
 
     time.sleep(1)
 
-if os.path.exists(output_file):
-    existing_df = pd.read_excel(output_file)
-    if 'PublicationDate' not in existing_df.columns:
-        existing_df['PublicationDate'] = pd.NaT
-    existing_df['PublicationDate'] = pd.to_datetime(existing_df['PublicationDate'], errors='coerce')
-    existing_df = existing_df[existing_df['PublicationDate'] >= cutoff_date]
+# ==================== Database Sync & Cleanup ====================
+if not all_articles:
+    print("No new articles matched your companies today.")
 else:
-    existing_df = pd.DataFrame(columns=["Company", "Content", "PublicationDate", "Source", "Link"])
+    print(f"Scraped {len(all_articles)} raw articles. Syncing to database...")
+    
+    # Database connection setup
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        supabase_host = os.getenv("SUPABASE_DB_HOST")
+        supabase_port = os.getenv("SUPABASE_DB_PORT", "5432")
+        supabase_name = os.getenv("SUPABASE_DB_NAME", "postgres")
+        supabase_user = os.getenv("SUPABASE_DB_USER", "postgres")
+        supabase_password = os.getenv("SUPABASE_DB_PASSWORD")
+        supabase_sslmode = os.getenv("SUPABASE_DB_SSLMODE", "require")
+        DATABASE_URL = (
+            f"postgresql+psycopg2://{supabase_user}:{supabase_password}"
+            f"@{supabase_host}:{supabase_port}/{supabase_name}?sslmode={supabase_sslmode}"
+        )
+    
+    from sqlalchemy import create_engine, text
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
-new_df = pd.DataFrame(all_articles)
-combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+    with engine.begin() as conn:
+        # 1. Create the News table if it doesn't exist
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS "News" (
+                "Company" TEXT,
+                "Content" TEXT,
+                "PublicationDate" TIMESTAMP,
+                "Source" TEXT,
+                "Link" TEXT,
+                UNIQUE ("Content", "Link")
+            )
+        """))
 
-combined_df.drop_duplicates(subset=["Content", "Link"], inplace=True)
-combined_df.sort_values(by="PublicationDate", ascending=False, inplace=True)
-combined_df['PublicationDate'] = combined_df['PublicationDate'].dt.tz_localize(None)
+        # 2. Insert new articles (ignore if we already scraped this exact article)
+        insert_query = text("""
+            INSERT INTO "News" ("Company", "Content", "PublicationDate", "Source", "Link")
+            VALUES (:Company, :Content, :PublicationDate, :Source, :Link)
+            ON CONFLICT ("Content", "Link") DO NOTHING
+        """)
+        
+        for article in all_articles:
+            conn.execute(insert_query, article)
 
-combined_df.to_excel(output_file, index=False)
-print(f"Saved {len(combined_df)} filtered articles to '{output_file}'.")
+        # 3. The 7-Day Memory Clean: Delete anything older than 7 days
+        conn.execute(text("""
+            DELETE FROM "News"
+            WHERE "PublicationDate" < NOW() - INTERVAL '7 days'
+        """))
+
+    print("Successfully synced to the 'News' table and cleared old memory!")

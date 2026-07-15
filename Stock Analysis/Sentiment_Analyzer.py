@@ -177,21 +177,19 @@ def analyze_sentiment(chunks, sentiment_analyzer):
 
 # ==================== Main Process ====================
 try:
-    # Load data
-    print(" Loading Excel file...")
-    df = pd.read_excel(input_file)
+    print(" Loading raw news from Supabase 'News' table...")
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
     
-    # Validate columns
-    required_columns = ["Company", "Content"]
-    for col in required_columns:
-        if col not in df.columns:
-            raise ValueError(f" Column '{col}' not found in Excel!")
+    with engine.connect() as conn:
+        df = pd.read_sql('SELECT "Company", "Content" FROM "News"', conn)
     
-    print(f" Loaded {len(df)} rows from Excel\n")
+    if df.empty:
+        raise ValueError(" No news data found in the 'News' table!")
+    
+    print(f" Loaded {len(df)} rows from the database\n")
     
     # Count articles per company
-    article_counts = df.groupby("Company").size().to_dict()
-    
+    article_counts = df.groupby("Company").size().to_dict()    
     # Group and clean content
     company_paragraphs = df.groupby("Company")["Content"].apply(lambda x: " ".join(x)).to_dict()
     
@@ -241,12 +239,6 @@ try:
         })
         
         print(f" {company}: {overall_label} (Score: {overall_score:.4f})")
-    
-    # Export to Excel
-    print(f"\n Saving to Excel...")
-    results_df = pd.DataFrame(results)
-    results_df.to_excel(SENTIMENT_OUTPUT_FILE, index=False, engine='openpyxl')
-    print(f" Excel saved: {SENTIMENT_OUTPUT_FILE} ({len(results)} rows)")
     
     print(f"\n Syncing to Supabase Postgres...")
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
