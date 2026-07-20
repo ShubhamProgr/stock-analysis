@@ -1,31 +1,32 @@
 {
-  "name": "stockiq",
-  "version": "1.0.0",
+  "name": "northline-app",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint"
   },
   "dependencies": {
-    "dotenv": "16.4.5",
-    "jose": "5.6.3",
-    "lightweight-charts": "4.1.7",
-    "next": "^14.2.35",
-    "pg": "8.12.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "zod": "3.23.8"
+    "dotenv": "^17.4.2",
+    "jose": "^6.2.3",
+    "next": "16.2.10",
+    "pg": "^8.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@types/node": "20.14.11",
-    "@types/pg": "8.11.6",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "autoprefixer": "10.4.19",
-    "postcss": "8.4.40",
-    "tailwindcss": "3.4.7",
-    "typescript": "5.5.4"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.5.4",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "postcss": "^8.5.20",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5"
   }
 }
