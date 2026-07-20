@@ -1,24 +1,39 @@
-export function formatINR(value: number | null | undefined, opts: { compact?: boolean } = {}): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
-  if (opts.compact) {
-    return new Intl.NumberFormat("en-IN", {
-      notation: "compact",
-      maximumFractionDigits: 2
-    }).format(value);
-  }
-  return new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
+export function fmtMoney(v: number): string {
+  return "₹" + v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
-  return `${(value * 100).toFixed(2)}%`;
+export function fmtPct(v: number): string {
+  return (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
 }
 
-export function formatDate(value: string | Date | null | undefined): string {
-  if (!value) return "N/A";
-  const date = typeof value === "string" ? new Date(value) : value;
-  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+export function fmtVol(v: number): string {
+  if (v >= 1e7) return (v / 1e7).toFixed(2) + "Cr";
+  if (v >= 1e5) return (v / 1e5).toFixed(2) + "L";
+  return v.toLocaleString("en-IN");
+}
+
+export function fmtCompact(v: number): string {
+  if (v >= 1e12) return "₹" + (v / 1e12).toFixed(2) + "T";
+  if (v >= 1e9) return "₹" + (v / 1e9).toFixed(2) + "B";
+  if (v >= 1e7) return "₹" + (v / 1e7).toFixed(2) + "Cr";
+  return "₹" + v.toLocaleString("en-IN");
+}
+
+export function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+}
+
+export function sparklinePath(values: number[], w: number, h: number): string {
+  if (values.length === 0) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  return values
+    .map((v, i) => {
+      const x = (i / (values.length - 1 || 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
+    })
+    .join(" ");
 }

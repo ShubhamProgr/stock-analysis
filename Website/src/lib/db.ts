@@ -1,44 +1,31 @@
-import { Pool, type QueryResultRow } from "pg";
+import { Pool } from "pg";
 
 declare global {
-  // eslint-disable-next-line no-var
-  var __stockiqPool: Pool | undefined;
+  var _pgPool: Pool | undefined;
 }
 
-function createPool(): Pool {
+function createPool() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not set. Add it to your environment (see .env.example).");
+    throw new Error("DATABASE_URL is not set — add it to .env.local");
   }
   return new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
     max: 5,
-    idleTimeoutMillis: 30_000,
-    statement_timeout: 15_000
   });
 }
 
-// Reuse the pool across hot reloads / lambda warm invocations.
-const pool = global.__stockiqPool ?? createPool();
+// Reuse the pool across hot reloads in dev so we don't exhaust the Supabase pooler.
+export const pool = global._pgPool ?? createPool();
 if (process.env.NODE_ENV !== "production") {
-  global.__stockiqPool = pool;
+  global._pgPool = pool;
 }
 
-export async function query<T extends QueryResultRow = QueryResultRow>(
+export async function query<T = Record<string, unknown>>(
   text: string,
   params: unknown[] = []
 ): Promise<T[]> {
-  const result = await pool.query<T>(text, params);
-  return result.rows;
+  const result = await pool.query(text, params);
+  return result.rows as T[];
 }
-
-export async function queryOne<T extends QueryResultRow = QueryResultRow>(
-  text: string,
-  params: unknown[] = []
-): Promise<T | null> {
-  const rows = await query<T>(text, params);
-  return rows[0] ?? null;
-}
-
-export { pool };

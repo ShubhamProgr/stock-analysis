@@ -9,15 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
-    "jose": "^6.2.3",
+    "@tailwindcss/postcss": "^4.3.3",
     "next": "16.2.10",
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
