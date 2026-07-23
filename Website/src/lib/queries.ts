@@ -1,5 +1,20 @@
-import { query } from "./db";
-import { buildStrategies } from "./signals";
+import { pool, query } from './db';import { buildStrategies } from "./signals"; 
+import { PredictionData } from './types';
+
+export async function getPredictions(): Promise<PredictionData[] | null> {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT ON ("Ticker") * 
+      FROM final_analysis 
+      ORDER BY "Ticker", "Prediction_Date" DESC
+    `);
+    return result.rows as PredictionData[];
+  } catch (error) {
+    console.error("Error fetching predictions:", error);
+    return null;
+  }
+}
+
 import type {
   CompanyInfo,
   CompanySentiment,

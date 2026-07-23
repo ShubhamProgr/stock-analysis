@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { TickerBundle, WatchlistRow } from "@/lib/types";
+// 1. Added PredictionData to the imports
+import type { TickerBundle, WatchlistRow, PredictionData } from "@/lib/types"; 
 import Sidebar from "./Sidebar";
 import TickerTape from "./TickerTape";
 import StatTiles from "./StatTiles";
@@ -9,6 +10,7 @@ import PriceSentimentChart from "./PriceSentimentChart";
 import StrategyTable from "./StrategyTable";
 import CompanySentimentCard from "./CompanySentimentCard";
 import NewsFeed from "./NewsFeed";
+import { dayLabel } from "@/lib/format";
 
 const RANGES = [
   { label: "1M", days: 22 },
@@ -22,14 +24,19 @@ type Props = {
   initialWatchlist: WatchlistRow[];
   initialBundle: TickerBundle;
   initialRangeDays: number;
+  // 2. Added predictions to the expected properties
+  predictions: PredictionData[]; 
 };
 
-export default function Dashboard({ initialWatchlist, initialBundle, initialRangeDays }: Props) {
+// 3. Added predictions to the function parameters
+export default function Dashboard({ initialWatchlist, initialBundle, initialRangeDays, predictions }: Props) {
   const [watchlist] = useState(initialWatchlist);
   const [bundle, setBundle] = useState(initialBundle);
   const [rangeDays, setRangeDays] = useState(initialRangeDays);
   const [activeNav, setActiveNav] = useState("section-overview");
   const [loading, setLoading] = useState(false);
+  const currentPrediction = predictions.find((prediction) => prediction.Ticker === bundle.ticker) ?? null;
+  const predictionLabel = currentPrediction ? dayLabel(currentPrediction.Prediction_Date) : null;
 
   async function loadTicker(ticker: string, days: number) {
     setLoading(true);
@@ -71,7 +78,8 @@ export default function Dashboard({ initialWatchlist, initialBundle, initialRang
       />
 
       <div>
-        <TickerTape watchlist={watchlist} />
+        {/* 4. Updated TickerTape to use your new predictions data */}
+        <TickerTape predictions={predictions} />
 
         <main className={loading ? "loadingOverlay" : ""}>
           <div className="pageHead">
@@ -93,7 +101,7 @@ export default function Dashboard({ initialWatchlist, initialBundle, initialRang
             </div>
           </div>
 
-          <StatTiles bundle={bundle} />
+          <StatTiles bundle={bundle} predictionLabel={predictionLabel} />
 
           <section className="contentGrid">
             <div className="card">

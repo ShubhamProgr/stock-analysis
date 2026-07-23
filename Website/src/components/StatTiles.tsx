@@ -2,7 +2,13 @@ import type { TickerBundle } from "@/lib/types";
 import { compositeFromStrategies } from "@/lib/signals";
 import { fmtMoney, fmtPct, fmtVol } from "@/lib/format";
 
-export default function StatTiles({ bundle }: { bundle: TickerBundle }) {
+export default function StatTiles({
+  bundle,
+  predictionLabel,
+}: {
+  bundle: TickerBundle;
+  predictionLabel: string | null;
+}) {
   const composite = compositeFromStrategies(bundle.strategies);
   const latestSentiment = bundle.sentimentSeries[bundle.sentimentSeries.length - 1] ?? null;
   const priorSentiment = bundle.sentimentSeries[bundle.sentimentSeries.length - 2] ?? null;
@@ -12,7 +18,7 @@ export default function StatTiles({ bundle }: { bundle: TickerBundle }) {
   return (
     <section className="statRow" id="section-overview">
       <div className="tile">
-        <div className="eyebrow">Last price</div>
+        <div className="eyebrow">{predictionLabel ? `Prediction - ${predictionLabel}` : "Prediction"}</div>
         <div className="value mono">{fmtMoney(bundle.price)}</div>
         <div className="sub">
           <span className={`chip ${bundle.changePct >= 0 ? "up" : "down"}`}>{fmtPct(bundle.changePct)}</span> today

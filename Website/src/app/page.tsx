@@ -1,13 +1,15 @@
-import { getWatchlist, getTickerBundle } from "@/lib/queries";
+import { getWatchlist, getTickerBundle, getPredictions } from "@/lib/queries";
 import Dashboard from "@/components/Dashboard";
 
 const DEFAULT_TICKER = "RELIANCE.NS";
 const DEFAULT_RANGE_DAYS = 126;
 
 export default async function Home() {
-  const [watchlist, bundle] = await Promise.all([
+  // Fetch your original data PLUS the new predictions
+  const [watchlist, bundle, predictions] = await Promise.all([
     getWatchlist(),
     getTickerBundle(DEFAULT_TICKER, DEFAULT_RANGE_DAYS),
+    getPredictions(), 
   ]);
 
   if (!bundle) {
@@ -18,5 +20,13 @@ export default async function Home() {
     );
   }
 
-  return <Dashboard initialWatchlist={watchlist} initialBundle={bundle} initialRangeDays={DEFAULT_RANGE_DAYS} />;
+  // Pass the predictions down into the Dashboard component
+  return (
+    <Dashboard 
+      initialWatchlist={watchlist} 
+      initialBundle={bundle} 
+      initialRangeDays={DEFAULT_RANGE_DAYS} 
+      predictions={predictions || []} 
+    />
+  );
 }

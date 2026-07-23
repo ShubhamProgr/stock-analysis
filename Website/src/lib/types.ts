@@ -74,3 +74,19 @@ export type TickerBundle = {
   strategies: StrategySignal[];
   predictionHistory: PredictionPoint[];
 };
+
+export interface PredictionData {
+  Company: string;
+  Ticker: string;
+  Prediction_Date: string;
+  Predicted_Closing_Price: number;
+  Predicted_Return_Pct: number | null;  // <-- Add this new line
+  Last_Close: number;
+  Last_Close_Date: string;
+  MAE: number;
+  MSE: number;
+  RMSE: number;
+  R2_Score: number;
+  Sentiment: string;
+  Sentiment_Score: number;
+}
