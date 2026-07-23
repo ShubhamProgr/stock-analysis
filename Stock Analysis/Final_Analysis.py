@@ -140,10 +140,9 @@ for ticker, company in ticker_to_company.items():
         # Shift the returns up by 1 to act as our target (predicting TOMORROW'S return)
         df['Target_Return'] = df['Daily_Return'].shift(-1)
         
-        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']]
-        y_reg = df['Target_Return'].dropna()
-        X = X.iloc[1:-1] # Drop the first row (NaN return) and last row (NaN target)
-        
+        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']].iloc[:-1]
+        y_reg = df['Target_Return'].iloc[:-1]
+
         if len(X) != len(y_reg):
             continue
 
