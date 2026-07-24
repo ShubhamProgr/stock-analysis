@@ -115,8 +115,7 @@ for ticker, company in ticker_to_company.items():
         if len(df) < 10:
             continue
 
-        df = df.dropna()
-
+        # Sentiment query
         sent_query = """
             SELECT "Sentiment", "Score"
             FROM company_finbert_sentiments
@@ -133,19 +132,24 @@ for ticker, company in ticker_to_company.items():
 
         df['Sentiment_Score'] = sentiment_score
 
-        # --- KEY CHANGE: TARGET ENGINEERING ---
-        # Calculate daily percentage returns
+        # --- TARGET ENGINEERING ---
         df['Daily_Return'] = df['Close'].pct_change()
-        
-        # Shift the returns up by 1 to act as our target (predicting TOMORROW'S return)
         df['Target_Return'] = df['Daily_Return'].shift(-1)
-        
-        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']].iloc[:-1]
-        y_reg = df['Target_Return'].iloc[:-1]
 
-        if len(X) != len(y_reg):
+        # Replace infinite values with NaN
+        df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        # Clean all NaNs across features and targets AFTER engineering
+        df = df.dropna()
+
+        if len(df) < 10:
             continue
 
+        # Separate features (X) and target (y)
+        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']]
+        y_reg = df['Target_Return']
+
+        # Train-test split
         X_train, X_test, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2, shuffle=False)
 
         reg = RandomForestRegressor(
@@ -156,14 +160,14 @@ for ticker, company in ticker_to_company.items():
         )
         reg.fit(X_train, y_reg_train)
 
-        # --- KEY CHANGE: PREDICTION LOGIC ---
-        latest_data = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']].iloc[[-1]]
+        # --- PREDICTION LOGIC ---
+        latest_data = X.iloc[[-1]]
         predicted_return = reg.predict(latest_data)[0]
         
         last_close = df.iloc[-1]['Close']
         predicted_price = last_close * (1 + predicted_return)
 
-        # Re-convert testing targets to absolute prices to calculate accurate MAE/MSE in rupees
+        # Re-convert testing targets to absolute prices to calculate accurate MAE/MSE
         y_reg_pred_return = reg.predict(X_test)
         y_test_prices = X_test['Close'] * (1 + y_reg_test)
         y_pred_prices = X_test['Close'] * (1 + y_reg_pred_return)
@@ -178,7 +182,7 @@ for ticker, company in ticker_to_company.items():
             'Ticker': ticker,
             'Prediction_Date': get_next_trading_day(df.iloc[-1]['Date']),
             'Predicted_Closing_Price': round(predicted_price, 2),
-            'Predicted_Return_Pct': round(predicted_return * 100, 4), # Saving percentage as a nice readable number (e.g., 1.25 for 1.25%)
+            'Predicted_Return_Pct': round(predicted_return * 100, 4),
             'Last_Close': last_close,
             'Last_Close_Date': df.iloc[-1]['Date'],
             'MAE': round(mae, 4),
@@ -198,19 +202,6 @@ final_df = pd.DataFrame(results)
 if final_df.empty:
     print("No results to save. Exiting.")
 else:
-    prediction_date = final_df.iloc[-1]['Prediction_Date']
-    if isinstance(prediction_date, pd.Timestamp):
-        prediction_date_str = prediction_date.strftime('%Y_%m_%d')
-    else:
-        prediction_date_str = pd.to_datetime(prediction_date).strftime('%Y_%m_%d')
-
-    output_path = f'data/Final_Analysis_{prediction_date_str}.xlsx'
-    
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    final_df.to_excel(output_path, index=False)
-    print(f"Final Analysis saved to {output_path}")
-
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS final_analysis (

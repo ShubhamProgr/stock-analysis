@@ -1,12 +1,18 @@
-import { pool, query } from './db';import { buildStrategies } from "./signals"; 
+import { pool, query } from './db';
+import { buildStrategies } from "./signals";
 import { PredictionData } from './types';
 
 export async function getPredictions(): Promise<PredictionData[] | null> {
   try {
     const result = await pool.query(`
-      SELECT DISTINCT ON ("Ticker") * 
-      FROM final_analysis 
-      ORDER BY "Ticker", "Prediction_Date" DESC
+      WITH latest AS (
+        SELECT MAX("Prediction_Date") AS max_date
+        FROM final_analysis
+      )
+      SELECT fa.*
+      FROM final_analysis fa
+      JOIN latest l ON fa."Prediction_Date" = l.max_date
+      ORDER BY fa."Ticker" ASC
     `);
     return result.rows as PredictionData[];
   } catch (error) {
@@ -119,12 +125,38 @@ export async function getLatestAnalysis(ticker: string) {
     sentiment: string;
     sentiment_score: string;
   }>(
-    `SELECT "Prediction_Date" as prediction_date, "Predicted_Closing_Price" as predicted_closing_price,
-            "Last_Close" as last_close, "R2_Score" as r2_score,
-            "Sentiment" as sentiment, "Sentiment_Score" as sentiment_score
-     FROM final_analysis
-     WHERE "Ticker" = $1
-     ORDER BY "Prediction_Date" DESC
+    `WITH latest AS (
+       SELECT MAX("Prediction_Date") AS max_date
+       FROM final_analysis
+     ),
+     preferred AS (
+       SELECT "Prediction_Date" as prediction_date,
+              "Predicted_Closing_Price" as predicted_closing_price,
+              "Last_Close" as last_close,
+              "R2_Score" as r2_score,
+              "Sentiment" as sentiment,
+              "Sentiment_Score" as sentiment_score
+       FROM final_analysis
+       WHERE "Ticker" = $1
+         AND "Prediction_Date" = (SELECT max_date FROM latest)
+       LIMIT 1
+     ),
+     fallback AS (
+       SELECT "Prediction_Date" as prediction_date,
+              "Predicted_Closing_Price" as predicted_closing_price,
+              "Last_Close" as last_close,
+              "R2_Score" as r2_score,
+              "Sentiment" as sentiment,
+              "Sentiment_Score" as sentiment_score
+       FROM final_analysis
+       WHERE "Ticker" = $1
+       ORDER BY "Prediction_Date" DESC
+       LIMIT 1
+     )
+     SELECT * FROM preferred
+     UNION ALL
+     SELECT * FROM fallback
+     WHERE NOT EXISTS (SELECT 1 FROM preferred)
      LIMIT 1`,
     [ticker]
   );
