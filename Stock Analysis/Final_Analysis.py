@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
-from datetime import timedelta, datetime, date, time
+from datetime import timedelta, datetime, time
+from zoneinfo import ZoneInfo
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -106,9 +107,9 @@ for ticker, company in ticker_to_company.items():
         df['Date'] = pd.to_datetime(df['Date'])
         df = df.sort_values('Date')
 
-        now = datetime.now()
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
         market_close_time = time(15, 30)
-        today = pd.Timestamp(date.today())
+        today = pd.Timestamp(now.date())
         if df['Date'].iloc[-1].date() == today.date() and now.time() < market_close_time:
             df = df[df['Date'] < today]
 
@@ -139,15 +140,19 @@ for ticker, company in ticker_to_company.items():
         # Replace infinite values with NaN
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-        # Clean all NaNs across features and targets AFTER engineering
-        df = df.dropna()
+        feature_cols = ['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']
+        latest_row = df.dropna(subset=feature_cols).iloc[[-1]]
 
-        if len(df) < 10:
+        # Clean training rows after engineering. The latest row has no future target yet,
+        # so keep it separate for the actual next-trading-day prediction.
+        train_df = df.dropna(subset=feature_cols + ['Daily_Return', 'Target_Return'])
+
+        if len(train_df) < 10:
             continue
 
         # Separate features (X) and target (y)
-        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Sentiment_Score']]
-        y_reg = df['Target_Return']
+        X = train_df[feature_cols]
+        y_reg = train_df['Target_Return']
 
         # Train-test split
         X_train, X_test, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2, shuffle=False)
@@ -161,10 +166,10 @@ for ticker, company in ticker_to_company.items():
         reg.fit(X_train, y_reg_train)
 
         # --- PREDICTION LOGIC ---
-        latest_data = X.iloc[[-1]]
+        latest_data = latest_row[feature_cols]
         predicted_return = reg.predict(latest_data)[0]
         
-        last_close = df.iloc[-1]['Close']
+        last_close = latest_row.iloc[-1]['Close']
         predicted_price = last_close * (1 + predicted_return)
 
         # Re-convert testing targets to absolute prices to calculate accurate MAE/MSE
@@ -180,11 +185,11 @@ for ticker, company in ticker_to_company.items():
         results.append({
             'Company': company,
             'Ticker': ticker,
-            'Prediction_Date': get_next_trading_day(df.iloc[-1]['Date']),
+            'Prediction_Date': get_next_trading_day(latest_row.iloc[-1]['Date']),
             'Predicted_Closing_Price': round(predicted_price, 2),
             'Predicted_Return_Pct': round(predicted_return * 100, 4),
             'Last_Close': last_close,
-            'Last_Close_Date': df.iloc[-1]['Date'],
+            'Last_Close_Date': latest_row.iloc[-1]['Date'],
             'MAE': round(mae, 4),
             'MSE': round(mse, 4),
             'RMSE': round(rmse, 4),
