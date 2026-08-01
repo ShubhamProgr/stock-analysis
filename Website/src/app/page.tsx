@@ -1,4 +1,4 @@
-import { getWatchlist, getTickerBundle, getPredictions } from "@/lib/queries";
+import { getWatchlist, getTickerBundle, getPredictionDates, getPredictions } from "@/lib/queries";
 import Dashboard from "@/components/Dashboard";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,8 @@ const DEFAULT_TICKER = "RELIANCE.NS";
 const DEFAULT_RANGE_DAYS = 126;
 
 export default async function Home() {
-  const predictions = await getPredictions();
+  const [predictionDates, predictions] = await Promise.all([getPredictionDates(), getPredictions()]);
+  const initialPredictionDate = predictionDates[0] ?? predictions?.[0]?.Prediction_Date ?? null;
   const initialTicker = predictions?.[0]?.Ticker ?? DEFAULT_TICKER;
 
   const [watchlist, bundle] = await Promise.all([
@@ -30,7 +31,9 @@ export default async function Home() {
       initialWatchlist={watchlist} 
       initialBundle={bundle} 
       initialRangeDays={DEFAULT_RANGE_DAYS} 
-      predictions={predictions || []} 
+      initialPredictionDate={initialPredictionDate}
+      predictionDates={predictionDates}
+      initialPredictions={predictions || []}
     />
   );
 }

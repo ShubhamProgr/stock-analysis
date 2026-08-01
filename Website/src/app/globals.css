@@ -406,6 +406,88 @@ main {
   box-shadow: var(--shadow);
 }
 
+.predictionControls {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.predictionPicker {
+  position: relative;
+}
+
+.predictionPickerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.predictionPickerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.predictionPickerValue {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.predictionMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+
+.predictionMenu button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.predictionMenu button:hover,
+.predictionMenu button.active {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.predictionMenu button .mono {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.predictionMenu button.active .mono {
+  color: var(--accent);
+}
+
 .statRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

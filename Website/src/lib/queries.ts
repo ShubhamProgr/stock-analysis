@@ -2,23 +2,51 @@ import { pool, query } from './db';
 import { buildStrategies } from "./signals";
 import { PredictionData } from './types';
 
-export async function getPredictions(): Promise<PredictionData[] | null> {
+export async function getPredictionDates(): Promise<string[]> {
   try {
     const result = await pool.query(`
-      WITH latest AS (
-        SELECT MAX("Prediction_Date") AS max_date
-        FROM final_analysis
-      )
-      SELECT fa.*
-      FROM final_analysis fa
-      JOIN latest l ON fa."Prediction_Date" = l.max_date
-      ORDER BY fa."Ticker" ASC
+      SELECT DISTINCT "Prediction_Date" AS date
+      FROM final_analysis
+      ORDER BY "Prediction_Date" DESC
     `);
+    return result.rows.map((row) => row.date as string);
+  } catch (error) {
+    console.error("Error fetching prediction dates:", error);
+    return [];
+  }
+}
+
+export async function getPredictions(date?: string): Promise<PredictionData[] | null> {
+  try {
+    const result = date
+      ? await pool.query(
+          `
+            SELECT fa.*
+            FROM final_analysis fa
+            WHERE fa."Prediction_Date" = $1
+            ORDER BY fa."Ticker" ASC
+          `,
+          [date]
+        )
+      : await pool.query(`
+          WITH latest AS (
+            SELECT MAX("Prediction_Date") AS max_date
+            FROM final_analysis
+          )
+          SELECT fa.*
+          FROM final_analysis fa
+          JOIN latest l ON fa."Prediction_Date" = l.max_date
+          ORDER BY fa."Ticker" ASC
+        `);
     return result.rows as PredictionData[];
   } catch (error) {
     console.error("Error fetching predictions:", error);
     return null;
   }
+}
+
+export async function getPredictionsForDate(date: string): Promise<PredictionData[] | null> {
+  return getPredictions(date);
 }
 
 import type {

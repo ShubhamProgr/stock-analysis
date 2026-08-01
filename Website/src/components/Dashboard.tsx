@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-// 1. Added PredictionData to the imports
 import type { TickerBundle, WatchlistRow, PredictionData } from "@/lib/types"; 
 import Sidebar from "./Sidebar";
 import TickerTape from "./TickerTape";
@@ -24,19 +23,30 @@ type Props = {
   initialWatchlist: WatchlistRow[];
   initialBundle: TickerBundle;
   initialRangeDays: number;
-  // 2. Added predictions to the expected properties
-  predictions: PredictionData[]; 
+  initialPredictionDate: string | null;
+  predictionDates: string[];
+  initialPredictions: PredictionData[];
 };
 
-// 3. Added predictions to the function parameters
-export default function Dashboard({ initialWatchlist, initialBundle, initialRangeDays, predictions }: Props) {
+export default function Dashboard({
+  initialWatchlist,
+  initialBundle,
+  initialRangeDays,
+  initialPredictionDate,
+  predictionDates,
+  initialPredictions,
+}: Props) {
   const [watchlist] = useState(initialWatchlist);
   const [bundle, setBundle] = useState(initialBundle);
   const [rangeDays, setRangeDays] = useState(initialRangeDays);
   const [activeNav, setActiveNav] = useState("section-overview");
   const [loading, setLoading] = useState(false);
-  const currentPrediction = predictions.find((prediction) => prediction.Ticker === bundle.ticker) ?? null;
-  const predictionLabel = currentPrediction ? dayLabel(currentPrediction.Prediction_Date) : null;
+  const [analysisRows, setAnalysisRows] = useState(initialPredictions);
+  const [selectedPredictionDate, setSelectedPredictionDate] = useState(initialPredictionDate);
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
+
+  const currentPrediction = analysisRows.find((prediction) => prediction.Ticker === bundle.ticker) ?? null;
+  const predictionLabel = selectedPredictionDate ? dayLabel(selectedPredictionDate) : null;
 
   async function loadTicker(ticker: string, days: number) {
     setLoading(true);
@@ -62,6 +72,27 @@ export default function Dashboard({ initialWatchlist, initialBundle, initialRang
     loadTicker(bundle.ticker, days);
   }
 
+  async function handleSelectPredictionDate(date: string) {
+    if (date === selectedPredictionDate) {
+      setDateMenuOpen(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/predictions?date=${encodeURIComponent(date)}`);
+      if (!res.ok) throw new Error("failed to load predictions");
+      const data: { predictions: PredictionData[] } = await res.json();
+      setAnalysisRows(data.predictions);
+      setSelectedPredictionDate(date);
+      setDateMenuOpen(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleSelectNav(id: string) {
     setActiveNav(id);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -78,8 +109,7 @@ export default function Dashboard({ initialWatchlist, initialBundle, initialRang
       />
 
       <div>
-        {/* 4. Updated TickerTape to use your new predictions data */}
-        <TickerTape predictions={predictions} />
+        <TickerTape predictions={analysisRows} />
 
         <main className={loading ? "loadingOverlay" : ""}>
           <div className="pageHead">
@@ -88,20 +118,49 @@ export default function Dashboard({ initialWatchlist, initialBundle, initialRang
               <span className="name">{bundle.name}</span>
               <span className="badgeLive">Live · Supabase</span>
             </div>
-            <div className="rangeToggle">
-              {RANGES.map((r) => (
+            <div className="predictionControls">
+              <div className="predictionPicker">
                 <button
-                  key={r.label}
-                  className={rangeDays === r.days ? "active" : ""}
-                  onClick={() => handleSelectRange(r.days)}
+                  className="predictionPickerButton"
+                  onClick={() => setDateMenuOpen((open) => !open)}
+                  disabled={predictionDates.length === 0}
                 >
-                  {r.label}
+                  Adjust Prediction Date
+                  {predictionLabel && <span className="predictionPickerValue">{predictionLabel}</span>}
                 </button>
-              ))}
+                {dateMenuOpen && predictionDates.length > 0 && (
+                  <div className="predictionMenu">
+                    {predictionDates.map((date) => {
+                      const isActive = date === selectedPredictionDate;
+                      return (
+                        <button
+                          key={date}
+                          className={isActive ? "active" : ""}
+                          onClick={() => handleSelectPredictionDate(date)}
+                        >
+                          <span>{new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                          <span className="mono">{isActive ? "Selected" : ""}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="rangeToggle">
+                {RANGES.map((r) => (
+                  <button
+                    key={r.label}
+                    className={rangeDays === r.days ? "active" : ""}
+                    onClick={() => handleSelectRange(r.days)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <StatTiles bundle={bundle} predictionLabel={predictionLabel} />
+          <StatTiles bundle={bundle} predictionLabel={predictionLabel} prediction={currentPrediction} />
 
           <section className="contentGrid">
             <div className="card">
