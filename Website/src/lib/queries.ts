@@ -5,9 +5,9 @@ import { PredictionData } from './types';
 export async function getPredictionDates(): Promise<string[]> {
   try {
     const result = await pool.query(`
-      SELECT DISTINCT "Prediction_Date" AS date
+      SELECT DISTINCT ("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date::text AS date
       FROM final_analysis
-      ORDER BY "Prediction_Date" DESC
+      ORDER BY date DESC
     `);
     return result.rows.map((row) => row.date as string);
   } catch (error) {
@@ -23,19 +23,19 @@ export async function getPredictions(date?: string): Promise<PredictionData[] | 
           `
             SELECT fa.*
             FROM final_analysis fa
-            WHERE fa."Prediction_Date" = $1
+            WHERE (fa."Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = $1::date
             ORDER BY fa."Ticker" ASC
           `,
           [date]
         )
       : await pool.query(`
           WITH latest AS (
-            SELECT MAX("Prediction_Date") AS max_date
+            SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
             FROM final_analysis
           )
           SELECT fa.*
           FROM final_analysis fa
-          JOIN latest l ON fa."Prediction_Date" = l.max_date
+          JOIN latest l ON (fa."Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = l.max_date
           ORDER BY fa."Ticker" ASC
         `);
     return result.rows as PredictionData[];
@@ -154,7 +154,7 @@ export async function getLatestAnalysis(ticker: string) {
     sentiment_score: string;
   }>(
     `WITH latest AS (
-       SELECT MAX("Prediction_Date") AS max_date
+       SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
        FROM final_analysis
      ),
      preferred AS (
@@ -166,7 +166,7 @@ export async function getLatestAnalysis(ticker: string) {
               "Sentiment_Score" as sentiment_score
        FROM final_analysis
        WHERE "Ticker" = $1
-         AND "Prediction_Date" = (SELECT max_date FROM latest)
+         AND ("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = (SELECT max_date FROM latest)
        LIMIT 1
      ),
      fallback AS (

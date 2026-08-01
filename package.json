@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "next-cloudinary": "^6.17.5"
   },
   "devDependencies": {
     "@types/pg": "^8.20.0"

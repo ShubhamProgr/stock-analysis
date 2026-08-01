@@ -16,17 +16,31 @@ export default function StatTiles({
   const priorSentiment = bundle.sentimentSeries[bundle.sentimentSeries.length - 2] ?? null;
   const sentimentDelta = latestSentiment && priorSentiment ? latestSentiment.score - priorSentiment.score : null;
   const volVsAvg = ((bundle.volume - bundle.avgVolume30d) / (bundle.avgVolume30d || 1)) * 100;
-  const displayedPrice = prediction?.Predicted_Closing_Price ?? bundle.price;
-  const displayedChange = prediction?.Predicted_Return_Pct ?? bundle.changePct;
+  const hasSelectedPrediction = Boolean(predictionLabel);
+  const displayedPrice = prediction?.Predicted_Closing_Price ?? null;
+  const displayedChange = prediction?.Predicted_Return_Pct ?? null;
 
   return (
     <section className="statRow" id="section-overview">
       <div className="tile">
         <div className="eyebrow">{predictionLabel ? `Prediction - ${predictionLabel}` : "Prediction"}</div>
-        <div className="value mono">{fmtMoney(displayedPrice)}</div>
+        <div className="value mono">{displayedPrice === null ? "—" : fmtMoney(displayedPrice)}</div>
         <div className="sub">
-          <span className={`chip ${displayedChange >= 0 ? "up" : "down"}`}>{fmtPct(displayedChange)}</span>{" "}
-          {prediction ? "predicted return" : "today"}
+          {displayedChange === null ? (
+            hasSelectedPrediction ? (
+              "No prediction available for this date"
+            ) : (
+              <>
+                <span className={`chip ${bundle.changePct >= 0 ? "up" : "down"}`}>{fmtPct(bundle.changePct)}</span>{" "}
+                today
+              </>
+            )
+          ) : (
+            <>
+              <span className={`chip ${displayedChange >= 0 ? "up" : "down"}`}>{fmtPct(displayedChange)}</span>{" "}
+              predicted return
+            </>
+          )}
         </div>
       </div>
       <div className="tile">
