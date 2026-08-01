@@ -86,6 +86,7 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
             return (
               <button
                 key={row.ticker}
+                type="button"
                 className={`watchRow${row.ticker === currentTicker ? " active" : ""}`}
                 onClick={() => onSelectTicker(row.ticker)}
               >
