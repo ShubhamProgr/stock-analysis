@@ -50,8 +50,8 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
           </svg>
         </div>
         <div>
-          <div className="brandName">Northline</div>
-          <div className="brandSub">Market Intelligence</div>
+          <div className="brandName">Stock Analytics</div>
+          <div className="brandSub">By Shubham</div>
         </div>
       </div>
 

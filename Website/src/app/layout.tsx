@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Northline — Market Intelligence",
+  title: "Stock Analytics",
   description: "Price, sentiment, and model-derived trade signals for NSE-listed equities.",
 };
 
