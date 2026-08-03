@@ -2,8 +2,7 @@ name: Daily Stock Pipeline
 
 on:
   schedule:
-    - cron: '30 17 * * 0-4'
-      timezone: 'Asia/Kolkata'
+    - cron: '0 12 * * 0-4'
   
   workflow_dispatch:
 
