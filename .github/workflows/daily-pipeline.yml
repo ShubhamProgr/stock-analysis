@@ -32,19 +32,19 @@ jobs:
         run: mkdir -p data
 
       - name: 1. Extract Latest News
-        run: python "stock analysis/News_Extractor.py"
+        run: python "Stock Analysis/News_Extractor.py"
 
       - name: 2. Analyze Sentiment (FinBERT)
-        run: python "stock analysis/Sentiment_Analyzer.py"
+        run: python "Stock Analysis/Sentiment_Analyzer.py"
 
       - name: 3. Fetch Daily Stock Data
-        run: python "stock analysis/Stock_Data_Daily.py"
+        run: python "Stock Analysis/Stock_Data_Daily.py"
 
       - name: 4. Run ML Predictions (Random Forest)
-        run: python "stock analysis/Final_Analysis.py"
+        run: python "Stock Analysis/Final_Analysis.py"
 
       - name: 5. Reconcile Actual vs Predicted
-        run: python "stock analysis/Actual_vs_Prediction.py"
+        run: python "Stock Analysis/Actual_vs_Prediction.py"
 
       - name: 6. Generate and Email Report
         env:
@@ -54,7 +54,7 @@ jobs:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
         run: |
-          python "stock analysis/Reports.py"
+          python "Stock Analysis/Reports.py"
 
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
