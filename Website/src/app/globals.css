@@ -769,6 +769,22 @@ table.strategies tr:last-child td {
   margin-top: 1px;
 }
 
+.queryRunner textarea {
+  transition: border-color 0.2s ease;
+}
+
+.queryRunner textarea:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+}
+
+.queryRunner table th {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
 .loadingOverlay {
   opacity: 0.55;
   pointer-events: none;

@@ -152,6 +152,9 @@ export async function getLatestAnalysis(ticker: string) {
     r2_score: string;
     sentiment: string;
     sentiment_score: string;
+    model_type: string | null;
+    cv_rmse: string | null;
+    top_features: string | null;
   }>(
     `WITH latest AS (
        SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
@@ -163,7 +166,10 @@ export async function getLatestAnalysis(ticker: string) {
               "Last_Close" as last_close,
               "R2_Score" as r2_score,
               "Sentiment" as sentiment,
-              "Sentiment_Score" as sentiment_score
+              "Sentiment_Score" as sentiment_score,
+              "Model_Type" as model_type,
+              "CV_RMSE" as cv_rmse,
+              "Top_Features" as top_features
        FROM final_analysis
        WHERE "Ticker" = $1
          AND ("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = (SELECT max_date FROM latest)
@@ -175,7 +181,10 @@ export async function getLatestAnalysis(ticker: string) {
               "Last_Close" as last_close,
               "R2_Score" as r2_score,
               "Sentiment" as sentiment,
-              "Sentiment_Score" as sentiment_score
+              "Sentiment_Score" as sentiment_score,
+              "Model_Type" as model_type,
+              "CV_RMSE" as cv_rmse,
+              "Top_Features" as top_features
        FROM final_analysis
        WHERE "Ticker" = $1
        ORDER BY "Prediction_Date" DESC
@@ -197,6 +206,9 @@ export async function getLatestAnalysis(ticker: string) {
     r2: parseFloat(row.r2_score),
     sentiment: row.sentiment,
     sentimentScore: parseFloat(row.sentiment_score),
+    modelType: row.model_type,
+    cvRmse: row.cv_rmse ? parseFloat(row.cv_rmse) : null,
+    topFeatures: row.top_features ? JSON.parse(row.top_features) : null,
   };
 }
 
@@ -347,5 +359,6 @@ export async function getTickerBundle(ticker: string, rangeDays: number): Promis
     news,
     strategies,
     predictionHistory,
+    analysis,
   };
 }

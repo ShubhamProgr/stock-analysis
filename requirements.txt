@@ -9,6 +9,7 @@ flask-apscheduler
 psycopg2-binary
 scikit-learn
 numpy
+xgboost
 openpyxl
 transformers
 torch

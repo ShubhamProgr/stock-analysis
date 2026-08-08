@@ -73,6 +73,17 @@ export type TickerBundle = {
   news: NewsItem[];
   strategies: StrategySignal[];
   predictionHistory: PredictionPoint[];
+  analysis: {
+    predictionDate: string;
+    predictedClose: number;
+    lastClose: number;
+    r2: number;
+    sentiment: string;
+    sentimentScore: number;
+    modelType: string | null;
+    cvRmse: number | null;
+    topFeatures: Record<string, number> | null;
+  } | null;
 };
 
 export interface PredictionData {
@@ -89,4 +100,7 @@ export interface PredictionData {
   R2_Score: number;
   Sentiment: string;
   Sentiment_Score: number;
+  Model_Type?: string;
+  CV_RMSE?: number;
+  Top_Features?: string;
 }

@@ -116,7 +116,7 @@ gnews_api_key = os.getenv("GNEWS_API_KEY")
 
 all_articles = []
 ist = timezone(timedelta(hours=5,minutes=30))
-cutoff_date = (datetime.now(ist) - timedelta(days=7)).replace(tzinfo=None)
+cutoff_date = (datetime.now(ist) - timedelta(days=30)).replace(tzinfo=None)
 
 if not gnews_api_key:
     print("WARNING: GNEWS_API_KEY not found in environment variables. Please set it in .env")
@@ -250,7 +250,7 @@ else:
         # 3. The 7-Day Memory Clean: Delete anything older than 7 days
         conn.execute(text("""
             DELETE FROM "News"
-            WHERE "PublicationDate" < NOW() - INTERVAL '7 days'
+            WHERE "PublicationDate" < NOW() - INTERVAL '30 days'
         """))
 
     print("Successfully synced to the 'News' table and cleared old memory!")
