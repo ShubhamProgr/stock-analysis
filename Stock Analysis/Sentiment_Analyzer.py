@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 import pandas as pd
 import numpy as np
@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import create_engine, text
 from transformers import BertTokenizer, BertForSequenceClassification, pipeline
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 # ==================== Configuration ====================
 input_file = os.getenv("NEWS_FILE")

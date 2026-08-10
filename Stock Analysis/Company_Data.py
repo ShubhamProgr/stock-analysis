@@ -1,11 +1,11 @@
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 import yfinance as yf
 import pandas as pd
 import numpy
 from sqlalchemy import create_engine, text
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:

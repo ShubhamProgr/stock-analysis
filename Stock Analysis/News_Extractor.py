@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 import pandas as pd
 import time
 import re
 import requests
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 output_file = os.getenv("NEWS_FILE")
 
@@ -121,7 +121,7 @@ cutoff_date = (datetime.now(ist) - timedelta(days=30)).replace(tzinfo=None)
 if not gnews_api_key:
     print("WARNING: GNEWS_API_KEY not found in environment variables. Please set it in .env")
 else:
-    # Build batched queries (GNews max query length is 512 chars)
+    # Build batched queries (GNews max query length is 200 chars)
     queries = []
     current_query = ""
     for company, aliases in company_aliases.items():
@@ -129,7 +129,7 @@ else:
         alias_str = f'"{aliases[0]}"'
         if current_query:
             proposed = f"{current_query} OR {alias_str}"
-            if len(proposed) > 400:  # keep safely under 512
+            if len(proposed) > 180:  # keep safely under GNews 200 character limit
                 queries.append(current_query)
                 current_query = alias_str
             else:
@@ -143,9 +143,16 @@ else:
 
     for q in queries:
         # We request max 100 articles per batched query to get as much data as possible
-        url = f"https://gnews.io/api/v4/search?q={q}&lang=en&country=in&max=100&apikey={gnews_api_key}"
+        url = "https://gnews.io/api/v4/search"
+        params = {
+            "q": q,
+            "lang": "en",
+            "country": "in",
+            "max": 100,
+            "apikey": gnews_api_key
+        }
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, params=params, timeout=10)
             data = response.json()
             
             if "articles" in data:

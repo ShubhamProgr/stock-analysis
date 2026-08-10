@@ -1,9 +1,11 @@
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from datetime import timedelta, datetime, time
 from zoneinfo import ZoneInfo
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import os
+
+load_dotenv(find_dotenv())
 import pandas as pd
 import numpy as np
 import json
@@ -404,7 +406,7 @@ for ticker, company in ticker_to_company.items():
         # --- 10. Feature importance ---
         importances = dict(zip(FEATURE_COLS, final_model.feature_importances_))
         top_features = dict(sorted(importances.items(), key=lambda x: x[1], reverse=True)[:5])
-        top_features_str = json.dumps({k: round(v, 4) for k, v in top_features.items()})
+        top_features_str = json.dumps({k: round(float(v), 4) for k, v in top_features.items()})
 
         # --- 11. Predict next trading day ---
         latest_features = latest_row[FEATURE_COLS]

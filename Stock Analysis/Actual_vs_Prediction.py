@@ -1,10 +1,10 @@
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 
 def build_database_url() -> str:

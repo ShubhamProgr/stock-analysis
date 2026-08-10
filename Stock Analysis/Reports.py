@@ -5,10 +5,10 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 # Load environment variables from a .env file if it exists (for local testing)
-load_dotenv()
+load_dotenv(find_dotenv())
 
 def generate_and_send_report():
     # 1. Load Data from Supabase Postgres
