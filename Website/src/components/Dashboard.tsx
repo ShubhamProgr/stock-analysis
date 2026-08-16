@@ -10,7 +10,6 @@ import StrategyTable from "./StrategyTable";
 import CompanySentimentCard from "./CompanySentimentCard";
 import NewsFeed from "./NewsFeed";
 import ModelInsights from "./ModelInsights";
-import QueryRunner from "./QueryRunner";
 import { dayLabel } from "@/lib/format";
 
 const RANGES = [
@@ -192,10 +191,6 @@ export default function Dashboard({
               <NewsFeed news={bundle.news} />
               <ModelInsights bundle={bundle} />
             </div>
-          </section>
-
-          <section style={{ marginTop: 24 }}>
-            <QueryRunner />
           </section>
         </main>
       </div>
