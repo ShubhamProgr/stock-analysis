@@ -776,6 +776,316 @@ table.strategies tr:last-child td {
   transition: opacity 0.15s;
 }
 
+/* ---------- Prediction vs Actual Chart ---------- */
+.pvSection {
+  margin-top: 20px;
+}
+
+.pvCard {
+  overflow: hidden;
+}
+
+.pvCard .cardHead {
+  padding: 16px 20px 8px;
+}
+
+.pvCard .cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pvTickerBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-wash);
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+
+.pvControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pvRangeToggle {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.pvRangeToggle button {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pvRangeToggle button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.pvRangeToggle button:hover:not(.active) {
+  color: var(--ink);
+}
+
+/* Stats row */
+.pvStatsRow {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 4px;
+  overflow-x: auto;
+}
+
+.pvStat {
+  flex: 1;
+  min-width: 90px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border);
+}
+
+.pvStatLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pvStatValue {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.pvGood { color: var(--good); }
+.pvCaution { color: var(--caution); }
+.pvCritical { color: var(--critical); }
+
+/* Chart wrapper */
+.pvChartWrap {
+  padding: 8px 8px 0;
+}
+
+/* Recharts override: make brush look like the design system */
+.pvChartWrap .recharts-brush-slide {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+}
+.pvChartWrap .recharts-brush-traveller rect {
+  fill: var(--accent);
+  rx: 3;
+}
+.pvChartWrap .recharts-brush text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.pvChartWrap .recharts-legend-item-text {
+  color: var(--ink-2) !important;
+  font-size: 11px !important;
+}
+.pvChartWrap .recharts-cartesian-axis-tick-value {
+  font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+}
+
+/* Tooltip */
+.pvTooltip {
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 180px;
+}
+
+.pvTooltipDate {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.pvTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.pvTooltipRow span {
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+
+.pvTooltipRow strong {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pvTooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pvTooltipDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+/* Error distribution */
+.pvErrorSection {
+  padding: 12px 20px 8px;
+}
+
+.pvErrorHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pvErrorTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.pvErrorSub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pvErrorBars {
+  display: flex;
+  gap: 1px;
+  height: 64px;
+  align-items: stretch;
+  position: relative;
+}
+
+.pvErrorBars::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--grid);
+  z-index: 0;
+}
+
+.pvErrorBar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+}
+
+.pvErrorBarInner {
+  width: 100%;
+  max-width: 8px;
+  border-radius: 2px;
+  position: absolute;
+  transition: height 0.3s ease;
+  z-index: 1;
+}
+
+.pvErrorBarInner.good {
+  background: var(--good);
+  opacity: 0.7;
+}
+
+.pvErrorBarInner.caution {
+  background: var(--caution);
+  opacity: 0.7;
+}
+
+.pvErrorBarInner.critical {
+  background: var(--critical);
+  opacity: 0.7;
+}
+
+.pvErrorBar:hover .pvErrorBarInner {
+  opacity: 1;
+}
+
+.pvErrorAxis {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9.5px;
+  color: var(--muted);
+  padding-top: 4px;
+}
+
+.pvErrorCenter {
+  font-weight: 700;
+}
+
+/* Legend and footer */
+.pvLegendRow {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 20px 12px;
+  font-size: 11px;
+  color: var(--ink-2);
+  flex-wrap: wrap;
+}
+
+.pvLegendRow .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.pvDataCount {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.pvDisclaimer {
+  font-size: 10.5px;
+  color: var(--muted);
+  padding: 10px 20px 14px;
+  border-top: 1px dashed var(--border);
+  margin: 0;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
@@ -789,5 +1099,16 @@ table.strategies tr:last-child td {
   }
   .statRow {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .pvStatsRow {
+    flex-wrap: wrap;
+  }
+  .pvStat {
+    min-width: 80px;
+  }
+  .pvErrorHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }

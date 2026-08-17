@@ -10,6 +10,7 @@ import StrategyTable from "./StrategyTable";
 import CompanySentimentCard from "./CompanySentimentCard";
 import NewsFeed from "./NewsFeed";
 import ModelInsights from "./ModelInsights";
+import PredictionVsActualChart from "./PredictionVsActualChart";
 import { dayLabel } from "@/lib/format";
 
 const RANGES = [
@@ -192,6 +193,11 @@ export default function Dashboard({
               <ModelInsights bundle={bundle} />
             </div>
           </section>
+
+          <PredictionVsActualChart
+            predictionHistory={bundle.predictionHistory}
+            ticker={bundle.ticker}
+          />
         </main>
       </div>
     </div>
