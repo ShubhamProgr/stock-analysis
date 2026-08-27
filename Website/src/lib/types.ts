@@ -104,3 +104,104 @@ export interface PredictionData {
   CV_RMSE?: number;
   Top_Features?: string;
 }
+
+/* ==================== New types for dashboard features ==================== */
+
+/** Market Overview — one row per stock, grouped by sector for the heatmap */
+export type MarketOverviewRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  industry: string;
+  marketCap: number;
+  price: number;
+  predictedReturn: number;
+  sentiment: string;
+  sentimentScore: number;
+  r2: number;
+  signal: "BUY" | "HOLD" | "SELL";
+  confidence: number;
+};
+
+/** Screener — enriched row with fundamentals + prediction + signal */
+export type ScreenerRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  industry: string;
+  price: number;
+  predictedReturn: number;
+  sentiment: string;
+  sentimentScore: number;
+  r2: number;
+  trailingPE: number | null;
+  profitMargins: number | null;
+  grossMargins: number | null;
+  change52Week: number | null;
+  marketCap: number | null;
+  signal: "BUY" | "HOLD" | "SELL";
+  confidence: number;
+};
+
+/** OHLC data point for candlestick charts */
+export type OHLCPoint = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+/** Accuracy metrics — per-ticker and aggregate */
+export type AccuracyRow = {
+  ticker: string;
+  name: string;
+  totalPredictions: number;
+  mape: number;
+  directionAccuracy: number;
+  avgError: number;
+  avgAbsError: number;
+};
+
+export type AccuracyTimeSeries = {
+  date: string;
+  mape: number;
+  directionCorrect: boolean;
+  error: number;
+  ticker: string;
+};
+
+export type AccuracyData = {
+  overall: {
+    totalPredictions: number;
+    mape: number;
+    directionAccuracy: number;
+    avgError: number;
+  };
+  perTicker: AccuracyRow[];
+  timeSeries: AccuracyTimeSeries[];
+};
+
+/** Comparison — normalised price series for multiple tickers */
+export type ComparisonSeries = {
+  ticker: string;
+  name: string;
+  sector: string;
+  predictedReturn: number;
+  sentiment: string;
+  trailingPE: number | null;
+  profitMargins: number | null;
+  marketCap: number | null;
+  change52Week: number | null;
+  signal: "BUY" | "HOLD" | "SELL";
+  confidence: number;
+  series: { date: string; close: number; normalised: number }[];
+};
+
+export type ComparisonBundle = {
+  tickers: ComparisonSeries[];
+};
+
+/** Active view in the dashboard */
+export type DashboardView = "stock" | "market" | "screener" | "accuracy" | "compare";

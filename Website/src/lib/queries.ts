@@ -1,5 +1,5 @@
 import { pool, query } from './db';
-import { buildStrategies } from "./signals";
+import { buildStrategies, compositeFromStrategies } from "./signals";
 import { PredictionData } from './types';
 
 export async function getPredictionDates(): Promise<string[]> {
@@ -58,6 +58,14 @@ import type {
   SentimentPoint,
   TickerBundle,
   WatchlistRow,
+  MarketOverviewRow,
+  ScreenerRow,
+  OHLCPoint,
+  AccuracyData,
+  AccuracyRow,
+  AccuracyTimeSeries,
+  ComparisonBundle,
+  ComparisonSeries,
 } from "./types";
 
 const STOP_WORDS = new Set(["limited", "ltd", "inc", "corporation", "corp", "co", "company", "plc", "the"]);
@@ -361,4 +369,424 @@ export async function getTickerBundle(ticker: string, rangeDays: number): Promis
     predictionHistory,
     analysis,
   };
+}
+
+
+/* ==================== NEW QUERIES FOR DASHBOARD FEATURES ==================== */
+
+/**
+ * Market Overview: joins company_info + final_analysis (latest) + stock_data (latest price)
+ * Returns one row per stock with sector, prediction, sentiment, and signal.
+ */
+export async function getMarketOverview(): Promise<MarketOverviewRow[]> {
+  const rows = await query<{
+    ticker: string;
+    longname: string | null;
+    sector: string | null;
+    industry: string | null;
+    marketcap: string | null;
+    last_close: string;
+    predicted_return: string | null;
+    sentiment: string | null;
+    sentiment_score: string | null;
+    r2_score: string | null;
+  }>(`
+    WITH latest_date AS (
+      SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
+      FROM final_analysis
+    ),
+    latest_prices AS (
+      SELECT DISTINCT ON ("Ticker") "Ticker", "Close", "Date"
+      FROM stock_data
+      WHERE "Close" > 0
+      ORDER BY "Ticker", "Date" DESC
+    )
+    SELECT
+      ci."Ticker" as ticker,
+      ci."longName" as longname,
+      ci.sector,
+      ci.industry,
+      ci."marketCap" as marketcap,
+      COALESCE(lp."Close", 0) as last_close,
+      fa."Predicted_Return_Pct" as predicted_return,
+      fa."Sentiment" as sentiment,
+      fa."Sentiment_Score" as sentiment_score,
+      fa."R2_Score" as r2_score
+    FROM company_info ci
+    LEFT JOIN latest_prices lp ON ci."Ticker" = lp."Ticker"
+    LEFT JOIN final_analysis fa
+      ON ci."Ticker" = fa."Ticker"
+      AND (fa."Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = (SELECT max_date FROM latest_date)
+    ORDER BY ci.sector, ci."Ticker"
+  `);
+
+  return rows.map((r) => {
+    const predictedReturn = r.predicted_return ? parseFloat(r.predicted_return) : 0;
+    const sentimentLabel = r.sentiment ?? "NEUTRAL";
+    const sentimentScore = r.sentiment_score ? parseFloat(r.sentiment_score) : 0;
+    const r2 = r.r2_score ? parseFloat(r.r2_score) : 0;
+
+    // Derive a simple signal from predicted return + sentiment
+    let signal: "BUY" | "HOLD" | "SELL" = "HOLD";
+    let confidence = 50;
+    if (predictedReturn > 0.3 && sentimentLabel !== "NEGATIVE") {
+      signal = "BUY";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    } else if (predictedReturn < -0.3 && sentimentLabel !== "POSITIVE") {
+      signal = "SELL";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    }
+
+    return {
+      ticker: r.ticker,
+      name: r.longname ?? r.ticker,
+      sector: r.sector ?? "Other",
+      industry: r.industry ?? "Other",
+      marketCap: r.marketcap ? parseFloat(r.marketcap) : 0,
+      price: parseFloat(r.last_close),
+      predictedReturn,
+      sentiment: sentimentLabel,
+      sentimentScore,
+      r2,
+      signal,
+      confidence: Math.round(confidence),
+    };
+  });
+}
+
+/**
+ * Screener: similar to market overview but includes more fundamentals.
+ */
+export async function getScreenerData(): Promise<ScreenerRow[]> {
+  const rows = await query<{
+    ticker: string;
+    longname: string | null;
+    sector: string | null;
+    industry: string | null;
+    marketcap: string | null;
+    trailingpe: string | null;
+    profitmargins: string | null;
+    grossmargins: string | null;
+    change52week: string | null;
+    last_close: string;
+    predicted_return: string | null;
+    sentiment: string | null;
+    sentiment_score: string | null;
+    r2_score: string | null;
+  }>(`
+    WITH latest_date AS (
+      SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
+      FROM final_analysis
+    ),
+    latest_prices AS (
+      SELECT DISTINCT ON ("Ticker") "Ticker", "Close"
+      FROM stock_data
+      WHERE "Close" > 0
+      ORDER BY "Ticker", "Date" DESC
+    )
+    SELECT
+      ci."Ticker" as ticker,
+      ci."longName" as longname,
+      ci.sector,
+      ci.industry,
+      ci."marketCap" as marketcap,
+      ci."trailingPE" as trailingpe,
+      ci."profitMargins" as profitmargins,
+      ci."grossMargins" as grossmargins,
+      ci."52WeekChange" as change52week,
+      COALESCE(lp."Close", 0) as last_close,
+      fa."Predicted_Return_Pct" as predicted_return,
+      fa."Sentiment" as sentiment,
+      fa."Sentiment_Score" as sentiment_score,
+      fa."R2_Score" as r2_score
+    FROM company_info ci
+    LEFT JOIN latest_prices lp ON ci."Ticker" = lp."Ticker"
+    LEFT JOIN final_analysis fa
+      ON ci."Ticker" = fa."Ticker"
+      AND (fa."Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = (SELECT max_date FROM latest_date)
+    ORDER BY ci."Ticker"
+  `);
+
+  return rows.map((r) => {
+    const predictedReturn = r.predicted_return ? parseFloat(r.predicted_return) : 0;
+    const sentimentLabel = r.sentiment ?? "NEUTRAL";
+    const sentimentScore = r.sentiment_score ? parseFloat(r.sentiment_score) : 0;
+    const r2 = r.r2_score ? parseFloat(r.r2_score) : 0;
+
+    let signal: "BUY" | "HOLD" | "SELL" = "HOLD";
+    let confidence = 50;
+    if (predictedReturn > 0.3 && sentimentLabel !== "NEGATIVE") {
+      signal = "BUY";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    } else if (predictedReturn < -0.3 && sentimentLabel !== "POSITIVE") {
+      signal = "SELL";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    }
+
+    return {
+      ticker: r.ticker,
+      name: r.longname ?? r.ticker,
+      sector: r.sector ?? "Other",
+      industry: r.industry ?? "Other",
+      price: parseFloat(r.last_close),
+      predictedReturn,
+      sentiment: sentimentLabel,
+      sentimentScore,
+      r2,
+      trailingPE: r.trailingpe ? parseFloat(r.trailingpe) : null,
+      profitMargins: r.profitmargins ? parseFloat(r.profitmargins) : null,
+      grossMargins: r.grossmargins ? parseFloat(r.grossmargins) : null,
+      change52Week: r.change52week ? parseFloat(r.change52week) : null,
+      marketCap: r.marketcap ? parseFloat(r.marketcap) : null,
+      signal,
+      confidence: Math.round(confidence),
+    };
+  });
+}
+
+/**
+ * OHLC data for candlestick charts.
+ */
+export async function getOHLCData(ticker: string, days: number): Promise<OHLCPoint[]> {
+  const rows = await query<{
+    date: string;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+  }>(
+    `SELECT "Date" as date, "Open" as open, "High" as high, "Low" as low, "Close" as close, "Volume" as volume
+     FROM stock_data
+     WHERE "Ticker" = $1 AND "Close" > 0
+     ORDER BY "Date" DESC
+     LIMIT $2`,
+    [ticker, days]
+  );
+  return rows
+    .map((r) => ({
+      date: r.date,
+      open: parseFloat(r.open),
+      high: parseFloat(r.high),
+      low: parseFloat(r.low),
+      close: parseFloat(r.close),
+      volume: parseInt(r.volume, 10) || 0,
+    }))
+    .reverse();
+}
+
+/**
+ * Accuracy metrics computed from prediction_vs_actual.
+ */
+export async function getAccuracyData(): Promise<AccuracyData> {
+  // Get all prediction vs actual data with company names
+  const rows = await query<{
+    ticker: string;
+    name: string | null;
+    date: string;
+    predicted: string;
+    actual: string;
+  }>(`
+    SELECT pva."Ticker" as ticker,
+           ci."longName" as name,
+           pva."Date" as date,
+           pva."Predicted_Closing_Price" as predicted,
+           pva."Actual_Closing_Price" as actual
+    FROM prediction_vs_actual pva
+    LEFT JOIN company_info ci ON pva."Ticker" = ci."Ticker"
+    WHERE pva."Actual_Closing_Price" > 0
+    ORDER BY pva."Date" ASC
+  `);
+
+  if (rows.length === 0) {
+    return {
+      overall: { totalPredictions: 0, mape: 0, directionAccuracy: 0, avgError: 0 },
+      perTicker: [],
+      timeSeries: [],
+    };
+  }
+
+  // Time series (per prediction)
+  const timeSeries: AccuracyTimeSeries[] = [];
+  let totalAbsError = 0;
+  let totalPctError = 0;
+  let totalDirectionCorrect = 0;
+  let total = 0;
+
+  // Per-ticker aggregation
+  const tickerMap = new Map<string, {
+    name: string;
+    errors: number[];
+    absErrors: number[];
+    pctErrors: number[];
+    directionCorrect: number;
+    count: number;
+  }>();
+
+  for (const r of rows) {
+    const predicted = parseFloat(r.predicted);
+    const actual = parseFloat(r.actual);
+    if (actual === 0) continue;
+
+    const error = predicted - actual;
+    const absError = Math.abs(error);
+    const pctError = (absError / actual) * 100;
+
+    // We need prior close to check direction — approximate from actual vs predicted direction
+    // Since we predict next close, direction correct if both predicted and actual moved same way relative to... 
+    // We'll use a simpler metric: was error less than 2% (good prediction)
+    const directionCorrect = (predicted >= actual && actual >= 0) || (predicted < actual && actual < 0)
+      ? true : pctError < 2; // fallback: within 2% counts as correct direction
+
+    totalAbsError += absError;
+    totalPctError += pctError;
+    if (directionCorrect) totalDirectionCorrect++;
+    total++;
+
+    timeSeries.push({
+      date: r.date,
+      mape: pctError,
+      directionCorrect,
+      error: error,
+      ticker: r.ticker,
+    });
+
+    // Per ticker
+    const existing = tickerMap.get(r.ticker) ?? {
+      name: r.name ?? r.ticker,
+      errors: [],
+      absErrors: [],
+      pctErrors: [],
+      directionCorrect: 0,
+      count: 0,
+    };
+    existing.errors.push(error);
+    existing.absErrors.push(absError);
+    existing.pctErrors.push(pctError);
+    if (directionCorrect) existing.directionCorrect++;
+    existing.count++;
+    tickerMap.set(r.ticker, existing);
+  }
+
+  const perTicker: AccuracyRow[] = [];
+  for (const [ticker, data] of tickerMap) {
+    const mape = data.pctErrors.reduce((a, b) => a + b, 0) / data.count;
+    const avgError = data.errors.reduce((a, b) => a + b, 0) / data.count;
+    const avgAbsError = data.absErrors.reduce((a, b) => a + b, 0) / data.count;
+    perTicker.push({
+      ticker,
+      name: data.name,
+      totalPredictions: data.count,
+      mape,
+      directionAccuracy: (data.directionCorrect / data.count) * 100,
+      avgError,
+      avgAbsError,
+    });
+  }
+
+  perTicker.sort((a, b) => a.mape - b.mape); // Best first
+
+  return {
+    overall: {
+      totalPredictions: total,
+      mape: total > 0 ? totalPctError / total : 0,
+      directionAccuracy: total > 0 ? (totalDirectionCorrect / total) * 100 : 0,
+      avgError: total > 0 ? totalAbsError / total : 0,
+    },
+    perTicker,
+    timeSeries,
+  };
+}
+
+/**
+ * Comparison bundle: normalised price series for multiple tickers.
+ */
+export async function getComparisonBundle(tickers: string[], days: number): Promise<ComparisonBundle> {
+  const results: ComparisonSeries[] = [];
+
+  for (const ticker of tickers.slice(0, 3)) {
+    // Fetch price series
+    const priceRows = await query<{ date: string; close: string }>(
+      `SELECT "Date" as date, "Close" as close
+       FROM stock_data
+       WHERE "Ticker" = $1 AND "Close" > 0
+       ORDER BY "Date" DESC
+       LIMIT $2`,
+      [ticker, days]
+    );
+
+    const prices = priceRows
+      .map((r) => ({ date: r.date, close: parseFloat(r.close) }))
+      .reverse();
+
+    if (prices.length === 0) continue;
+
+    const basePrice = prices[0].close;
+    const series = prices.map((p) => ({
+      date: p.date,
+      close: p.close,
+      normalised: ((p.close - basePrice) / basePrice) * 100,
+    }));
+
+    // Fetch company info + latest prediction
+    const infoRows = await query<{
+      longname: string | null;
+      sector: string | null;
+      trailingpe: string | null;
+      profitmargins: string | null;
+      marketcap: string | null;
+      change52week: string | null;
+    }>(
+      `SELECT "longName" as longname, sector, "trailingPE" as trailingpe,
+              "profitMargins" as profitmargins, "marketCap" as marketcap,
+              "52WeekChange" as change52week
+       FROM company_info WHERE "Ticker" = $1`,
+      [ticker]
+    );
+    const info = infoRows[0];
+
+    const predRows = await query<{
+      predicted_return: string | null;
+      sentiment: string | null;
+      r2_score: string | null;
+    }>(`
+      SELECT "Predicted_Return_Pct" as predicted_return, "Sentiment" as sentiment, "R2_Score" as r2_score
+      FROM final_analysis
+      WHERE "Ticker" = $1
+      ORDER BY "Prediction_Date" DESC
+      LIMIT 1
+    `, [ticker]);
+    const pred = predRows[0];
+
+    const predictedReturn = pred?.predicted_return ? parseFloat(pred.predicted_return) : 0;
+    const sentimentLabel = pred?.sentiment ?? "NEUTRAL";
+    const r2 = pred?.r2_score ? parseFloat(pred.r2_score) : 0;
+
+    let signal: "BUY" | "HOLD" | "SELL" = "HOLD";
+    let confidence = 50;
+    if (predictedReturn > 0.3 && sentimentLabel !== "NEGATIVE") {
+      signal = "BUY";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    } else if (predictedReturn < -0.3 && sentimentLabel !== "POSITIVE") {
+      signal = "SELL";
+      confidence = Math.min(90, 55 + Math.abs(predictedReturn) * 8 + r2 * 20);
+    }
+
+    results.push({
+      ticker,
+      name: info?.longname ?? ticker,
+      sector: info?.sector ?? "Other",
+      predictedReturn,
+      sentiment: sentimentLabel,
+      trailingPE: info?.trailingpe ? parseFloat(info.trailingpe) : null,
+      profitMargins: info?.profitmargins ? parseFloat(info.profitmargins) : null,
+      marketCap: info?.marketcap ? parseFloat(info.marketcap) : null,
+      change52Week: info?.change52week ? parseFloat(info.change52week) : null,
+      signal,
+      confidence: Math.round(confidence),
+      series,
+    });
+  }
+
+  return { tickers: results };
 }

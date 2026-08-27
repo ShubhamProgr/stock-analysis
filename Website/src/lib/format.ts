@@ -37,3 +37,25 @@ export function sparklinePath(values: number[], w: number, h: number): string {
     })
     .join(" ");
 }
+
+/* ==================== New format utilities ==================== */
+
+/** Format market cap for heatmap cell labels (compact, no rupee sign) */
+export function fmtMarketCap(v: number): string {
+  if (v >= 1e12) return (v / 1e12).toFixed(1) + "T";
+  if (v >= 1e9) return (v / 1e9).toFixed(0) + "B";
+  if (v >= 1e7) return (v / 1e7).toFixed(0) + "Cr";
+  if (v >= 1e5) return (v / 1e5).toFixed(0) + "L";
+  return v.toLocaleString("en-IN");
+}
+
+/** Format a direction arrow + percentage */
+export function fmtDirection(v: number): string {
+  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "—";
+  return `${arrow} ${Math.abs(v).toFixed(2)}%`;
+}
+
+/** Format MAPE as a clean percentage */
+export function fmtMAPE(v: number): string {
+  return v.toFixed(2) + "%";
+}

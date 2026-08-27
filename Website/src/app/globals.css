@@ -1111,4 +1111,536 @@ table.strategies tr:last-child td {
     align-items: flex-start;
     gap: 4px;
   }
+  .marketGridBottom {
+    grid-template-columns: 1fr;
+  }
+  .compareSelector {
+    flex-direction: column;
+  }
+  .comparePickerGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .screenerFilters {
+    flex-direction: column;
+  }
 }
+
+/* ==================== Sidebar Divider ==================== */
+.railDivider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* ==================== Shared View Utilities ==================== */
+.viewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.viewTitle {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.viewSubtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+.viewLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 300px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.viewLoadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.muted {
+  color: var(--muted);
+}
+
+/* ==================== Chart Mode Toggle ==================== */
+.chartModeToggle {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 1px;
+}
+.chartModeToggle button {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chartModeToggle button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+/* ==================== Sector Heatmap ==================== */
+.heatmapContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.heatmapSector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.heatmapSectorLabel {
+  padding: 0 2px;
+}
+.heatmapGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.heatmapCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  min-width: 72px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.heatmapCell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 2;
+}
+.heatmapTicker {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+.heatmapReturn {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+/* ==================== Market View ==================== */
+.marketViewWrap {
+  max-width: 1180px;
+}
+.marketGridBottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.marketTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.marketTable th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.marketTable td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  vertical-align: middle;
+}
+.marketTable tr:last-child td {
+  border-bottom: none;
+}
+.marketTable tr:hover td {
+  background: var(--surface-2);
+}
+.marketTableName {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.marketTableSector {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.chip.positive { color: var(--good); background: var(--good-wash); }
+.chip.negative { color: var(--critical); background: var(--critical-wash); }
+.chip.neutral { color: var(--ink-2); background: var(--surface-2); }
+
+/* Sector bars */
+.sectorBars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sectorBar {
+  display: grid;
+  grid-template-columns: 160px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+.sectorBarLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+.sectorBarTrack {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sectorBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.sectorBarValue {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  text-align: right;
+}
+
+/* ==================== Screener ==================== */
+.screenerWrap {
+  max-width: 1180px;
+}
+.screenerFilters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.screenerSearch {
+  padding: 8px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 200px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.screenerSearch:focus {
+  border-color: var(--accent);
+}
+.screenerSearch::placeholder {
+  color: var(--muted);
+}
+.screenerSelect {
+  padding: 8px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+.screenerChipGroup {
+  display: flex;
+  gap: 4px;
+}
+.screenerChip {
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.screenerChip.active {
+  background: var(--accent-wash);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.screenerChip.active.buy { background: var(--good-wash); color: var(--good); border-color: var(--good); }
+.screenerChip.active.sell { background: var(--critical-wash); color: var(--critical); border-color: var(--critical); }
+.screenerChip.active.hold { background: var(--caution-wash); color: var(--caution); border-color: var(--caution); }
+
+.screenerTableCard {
+  overflow: hidden;
+}
+.screenerTableWrap {
+  overflow-x: auto;
+}
+.screenerTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+.screenerTable th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  white-space: nowrap;
+}
+.screenerTable th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.screenerTable th.sortable:hover {
+  color: var(--ink);
+}
+.screenerTable th.right,
+.screenerTable td.right {
+  text-align: right;
+}
+.screenerTable td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  vertical-align: middle;
+}
+.screenerRow {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.screenerRow:hover td {
+  background: var(--surface-2);
+}
+.screenerName {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.screenerSector {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* ==================== Technical Charts ==================== */
+.candlestickWrap {
+  margin: 0 -8px;
+}
+.technicalPanelWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.techSubChart {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.techSubLabel {
+  margin-bottom: 4px;
+}
+.techSubLegend {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  padding: 4px 0 4px 32px;
+}
+.techToggles {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.techToggle {
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.techToggle.active {
+  background: var(--accent-wash);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.techToggleDivider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-2);
+  margin: 0 4px;
+}
+
+/* ==================== Accuracy View ==================== */
+.accuracyWrap {
+  max-width: 1180px;
+}
+
+/* ==================== Compare View ==================== */
+.compareWrap {
+  max-width: 1180px;
+}
+.compareSelector {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.compareSelectorLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.compareSelectedChips {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.compareSelectedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 2px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.compareSelectedChip:hover {
+  background: var(--critical-wash);
+}
+.compareRemove {
+  font-size: 14px;
+  opacity: 0.5;
+  font-family: inherit;
+}
+.comparePickerGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.comparePickerItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: var(--ink);
+}
+.comparePickerItem:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.comparePickerItem:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.comparePickerItem.active {
+  border-width: 2px;
+}
+.comparePickerPrice {
+  font-size: 10px;
+  color: var(--muted);
+}
+.compareTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.compareTable th {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.compareTable th:first-child {
+  text-align: left;
+}
+.compareTable td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+.compareTable td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.compareTable tr:last-child td {
+  border-bottom: none;
+}
+

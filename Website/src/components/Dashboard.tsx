@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { TickerBundle, WatchlistRow, PredictionData } from "@/lib/types"; 
+import type { TickerBundle, WatchlistRow, PredictionData, DashboardView } from "@/lib/types"; 
 import Sidebar from "./Sidebar";
 import TickerTape from "./TickerTape";
 import StatTiles from "./StatTiles";
@@ -11,6 +11,11 @@ import CompanySentimentCard from "./CompanySentimentCard";
 import NewsFeed from "./NewsFeed";
 import ModelInsights from "./ModelInsights";
 import PredictionVsActualChart from "./PredictionVsActualChart";
+import TechnicalOverlays from "./TechnicalOverlays";
+import MarketView from "./MarketView";
+import ScreenerView from "./ScreenerView";
+import AccuracyView from "./AccuracyView";
+import CompareView from "./CompareView";
 import { dayLabel } from "@/lib/format";
 
 const RANGES = [
@@ -46,6 +51,8 @@ export default function Dashboard({
   const [analysisRows, setAnalysisRows] = useState(initialPredictions);
   const [selectedPredictionDate, setSelectedPredictionDate] = useState(initialPredictionDate);
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState<DashboardView>("stock");
+  const [chartMode, setChartMode] = useState<"line" | "candlestick">("line");
 
   const currentPrediction = analysisRows.find((prediction) => prediction.Ticker === bundle.ticker) ?? null;
   const predictionLabel = selectedPredictionDate ? dayLabel(selectedPredictionDate) : null;
@@ -65,7 +72,11 @@ export default function Dashboard({
   }
 
   function handleSelectTicker(ticker: string) {
-    if (ticker === bundle.ticker) return;
+    // If coming from another view, switch to stock view
+    if (activeView !== "stock") {
+      setActiveView("stock");
+    }
+    if (ticker === bundle.ticker && activeView === "stock") return;
     loadTicker(ticker, rangeDays);
   }
 
@@ -100,6 +111,10 @@ export default function Dashboard({
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function handleSelectView(view: DashboardView) {
+    setActiveView(view);
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -108,97 +123,152 @@ export default function Dashboard({
         onSelectTicker={handleSelectTicker}
         activeNav={activeNav}
         onSelectNav={handleSelectNav}
+        activeView={activeView}
+        onSelectView={handleSelectView}
       />
 
       <div>
         <TickerTape predictions={analysisRows} />
 
-        <main className={loading ? "loadingOverlay" : ""}>
-          <div className="pageHead">
-            <div className="tickerTitle">
-              <span className="sym mono">{bundle.ticker.replace(".NS", "")}</span>
-              <span className="name">{bundle.name}</span>
-              <span className="badgeLive">Live · Supabase</span>
-            </div>
-            <div className="predictionControls">
-              <div className="predictionPicker">
-                <button
-                  className="predictionPickerButton"
-                  onClick={() => setDateMenuOpen((open) => !open)}
-                  disabled={predictionDates.length === 0}
-                >
-                  Adjust Prediction Date
-                  {predictionLabel && <span className="predictionPickerValue">{predictionLabel}</span>}
-                </button>
-                {dateMenuOpen && predictionDates.length > 0 && (
-                  <div className="predictionMenu">
-                    {predictionDates.map((date) => {
-                      const isActive = date === selectedPredictionDate;
-                      return (
-                        <button
-                          key={date}
-                          className={isActive ? "active" : ""}
-                          onClick={() => handleSelectPredictionDate(date)}
-                        >
-                          <span>{new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                          <span className="mono">{isActive ? "Selected" : ""}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+        {/* ==================== Stock View ==================== */}
+        {activeView === "stock" && (
+          <main className={loading ? "loadingOverlay" : ""}>
+            <div className="pageHead">
+              <div className="tickerTitle">
+                <span className="sym mono">{bundle.ticker.replace(".NS", "")}</span>
+                <span className="name">{bundle.name}</span>
+                <span className="badgeLive">Live · Supabase</span>
               </div>
-              <div className="rangeToggle">
-                {RANGES.map((r) => (
+              <div className="predictionControls">
+                <div className="predictionPicker">
                   <button
-                    key={r.label}
-                    className={rangeDays === r.days ? "active" : ""}
-                    onClick={() => handleSelectRange(r.days)}
+                    className="predictionPickerButton"
+                    onClick={() => setDateMenuOpen((open) => !open)}
+                    disabled={predictionDates.length === 0}
                   >
-                    {r.label}
+                    Adjust Prediction Date
+                    {predictionLabel && <span className="predictionPickerValue">{predictionLabel}</span>}
                   </button>
-                ))}
+                  {dateMenuOpen && predictionDates.length > 0 && (
+                    <div className="predictionMenu">
+                      {predictionDates.map((date) => {
+                        const isActive = date === selectedPredictionDate;
+                        return (
+                          <button
+                            key={date}
+                            className={isActive ? "active" : ""}
+                            onClick={() => handleSelectPredictionDate(date)}
+                          >
+                            <span>{new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                            <span className="mono">{isActive ? "Selected" : ""}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="rangeToggle">
+                  {RANGES.map((r) => (
+                    <button
+                      key={r.label}
+                      className={rangeDays === r.days ? "active" : ""}
+                      onClick={() => handleSelectRange(r.days)}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          <StatTiles bundle={bundle} predictionLabel={predictionLabel} prediction={currentPrediction} />
+            <StatTiles bundle={bundle} predictionLabel={predictionLabel} prediction={currentPrediction} />
 
-          <section className="contentGrid">
-            <div className="card">
-              <div className="cardHead">
-                <div className="cardTitle">Price &amp; sentiment trend</div>
+            <section className="contentGrid">
+              <div className="card">
+                <div className="cardHead">
+                  <div className="cardTitle">
+                    {chartMode === "line" ? "Price & sentiment trend" : "Candlestick chart"}
+                  </div>
+                  <div className="chartModeToggle">
+                    <button
+                      className={chartMode === "line" ? "active" : ""}
+                      onClick={() => setChartMode("line")}
+                    >
+                      Line
+                    </button>
+                    <button
+                      className={chartMode === "candlestick" ? "active" : ""}
+                      onClick={() => setChartMode("candlestick")}
+                    >
+                      Candlestick
+                    </button>
+                  </div>
+                </div>
+                <div className="cardBody">
+                  {chartMode === "line" ? (
+                    <>
+                      <PriceSentimentChart series={bundle.series} sentimentSeries={bundle.sentimentSeries} />
+                      <div className="legendRow">
+                        <span>
+                          <span className="dot" style={{ background: "var(--accent)" }}></span>Close price
+                        </span>
+                        <span>
+                          <span className="dot" style={{ background: "var(--good)" }}></span>Sentiment &gt; 55
+                        </span>
+                        <span>
+                          <span className="dot" style={{ background: "var(--critical)" }}></span>Sentiment &lt; 45
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <TechnicalOverlays ticker={bundle.ticker} rangeDays={rangeDays} />
+                  )}
+                </div>
+
+                <StrategyTable strategies={bundle.strategies} />
               </div>
-              <div className="cardBody">
-                <PriceSentimentChart series={bundle.series} sentimentSeries={bundle.sentimentSeries} />
+
+              <div>
+                <CompanySentimentCard sentiment={bundle.companySentiment} />
+                <NewsFeed news={bundle.news} />
+                <ModelInsights bundle={bundle} />
               </div>
-              <div className="legendRow">
-                <span>
-                  <span className="dot" style={{ background: "var(--accent)" }}></span>Close price
-                </span>
-                <span>
-                  <span className="dot" style={{ background: "var(--good)" }}></span>Sentiment &gt; 55
-                </span>
-                <span>
-                  <span className="dot" style={{ background: "var(--critical)" }}></span>Sentiment &lt; 45
-                </span>
-              </div>
+            </section>
 
-              <StrategyTable strategies={bundle.strategies} />
-            </div>
+            <PredictionVsActualChart
+              predictionHistory={bundle.predictionHistory}
+              ticker={bundle.ticker}
+            />
+          </main>
+        )}
 
-            <div>
-              <CompanySentimentCard sentiment={bundle.companySentiment} />
-              <NewsFeed news={bundle.news} />
-              <ModelInsights bundle={bundle} />
-            </div>
-          </section>
+        {/* ==================== Market View ==================== */}
+        {activeView === "market" && (
+          <main>
+            <MarketView onSelectTicker={handleSelectTicker} />
+          </main>
+        )}
 
-          <PredictionVsActualChart
-            predictionHistory={bundle.predictionHistory}
-            ticker={bundle.ticker}
-          />
-        </main>
+        {/* ==================== Screener View ==================== */}
+        {activeView === "screener" && (
+          <main>
+            <ScreenerView onSelectTicker={handleSelectTicker} />
+          </main>
+        )}
+
+        {/* ==================== Accuracy View ==================== */}
+        {activeView === "accuracy" && (
+          <main>
+            <AccuracyView onSelectTicker={handleSelectTicker} />
+          </main>
+        )}
+
+        {/* ==================== Compare View ==================== */}
+        {activeView === "compare" && (
+          <main>
+            <CompareView watchlist={watchlist} onSelectTicker={handleSelectTicker} />
+          </main>
+        )}
       </div>
     </div>
   );
