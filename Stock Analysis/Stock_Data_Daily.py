@@ -111,7 +111,11 @@ if all_data_list:
     # Process using the capitalized column names
     final_df['Date'] = pd.to_datetime(final_df['Date']).dt.date
     for col in ['Open', 'High', 'Low', 'Close']:
-        final_df[col] = pd.to_numeric(final_df[col], errors='coerce').fillna(0.0)
+        final_df[col] = pd.to_numeric(final_df[col], errors='coerce')
+        
+    final_df = final_df.dropna(subset=['Close'])
+    final_df = final_df[final_df['Close'] > 0.0]
+    
     final_df['Volume'] = pd.to_numeric(final_df['Volume'], errors='coerce').fillna(0).astype(int)
 
     print(f"Total rows fetched: {len(final_df)}. Inserting any new (ticker, date) rows...")
