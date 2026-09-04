@@ -61,6 +61,16 @@ const VIEW_ITEMS: { id: DashboardView; label: string; icon: React.ReactNode }[] 
       </>
     ),
   },
+  {
+    id: "strategy",
+    label: "Strategies",
+    icon: (
+      <>
+        <path d="M2 13V8l3-3 3 2 4-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="12" cy="2" r="1.3" stroke="currentColor" strokeWidth="1.2" fill="none" />
+      </>
+    ),
+  },
 ];
 
 const STOCK_NAV_ITEMS = [
@@ -91,6 +101,13 @@ const STOCK_NAV_ITEMS = [
     ),
   },
 ];
+
+function fmtWatchPrice(v: number): string {
+  if (v >= 1000) {
+    return "₹" + Math.round(v).toLocaleString("en-IN");
+  }
+  return fmtMoney(v);
+}
 
 export default function Sidebar({ watchlist, currentTicker, onSelectTicker, activeNav, onSelectNav, activeView, onSelectView }: Props) {
   return (
@@ -159,9 +176,9 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
                       <span className="sym mono">{row.ticker.replace(".NS", "")}</span>
                       <span className="name">{row.name}</span>
                     </span>
-                    <svg width="46" height="20" viewBox="0 0 46 20">
+                    <svg width="40" height="18" viewBox="0 0 40 18">
                       <path
-                        d={sparklinePath(row.spark, 46, 20)}
+                        d={sparklinePath(row.spark, 40, 18)}
                         fill="none"
                         stroke={up ? "var(--good)" : "var(--critical)"}
                         strokeWidth="1.6"
@@ -169,8 +186,8 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
                         strokeLinejoin="round"
                       />
                     </svg>
-                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                      <span className="watchPrice mono">{fmtMoney(row.price)}</span>
+                    <span className="watchMetaCol">
+                      <span className="watchPrice mono">{fmtWatchPrice(row.price)}</span>
                       <span className={`watchChg ${row.changePct >= 0 ? "up" : "down"}`}>{fmtPct(row.changePct)}</span>
                     </span>
                   </button>

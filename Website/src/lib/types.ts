@@ -204,4 +204,4 @@ export type ComparisonBundle = {
 };
 
 /** Active view in the dashboard */
-export type DashboardView = "stock" | "market" | "screener" | "accuracy" | "compare";
+export type DashboardView = "stock" | "market" | "screener" | "accuracy" | "compare" | "strategy";

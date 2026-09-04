@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import type { OHLCPoint } from "@/lib/types";
 import CandlestickChart from "./CandlestickChart";
-import TechnicalPanel from "./TechnicalPanel";
 
 type Props = {
   ticker: string;
@@ -16,8 +15,6 @@ export default function TechnicalOverlays({ ticker, rangeDays }: Props) {
   const [showSMA20, setShowSMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(true);
   const [showBollinger, setShowBollinger] = useState(false);
-  const [showRSI, setShowRSI] = useState(true);
-  const [showMACD, setShowMACD] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -56,13 +53,6 @@ export default function TechnicalOverlays({ ticker, rangeDays }: Props) {
         <button className={`techToggle ${showBollinger ? "active" : ""}`} onClick={() => setShowBollinger(!showBollinger)}>
           Bollinger
         </button>
-        <span className="techToggleDivider" />
-        <button className={`techToggle ${showRSI ? "active" : ""}`} onClick={() => setShowRSI(!showRSI)}>
-          RSI
-        </button>
-        <button className={`techToggle ${showMACD ? "active" : ""}`} onClick={() => setShowMACD(!showMACD)}>
-          MACD
-        </button>
       </div>
 
       {/* Candlestick chart */}
@@ -72,11 +62,6 @@ export default function TechnicalOverlays({ ticker, rangeDays }: Props) {
         showSMA50={showSMA50}
         showBollinger={showBollinger}
       />
-
-      {/* Technical sub-panels */}
-      {(showRSI || showMACD) && data.length >= 30 && (
-        <TechnicalPanel data={data} />
-      )}
 
       <div className="legendRow" style={{ marginTop: 8 }}>
         {showSMA20 && <span><span className="dot" style={{ background: "var(--accent)" }}></span>SMA 20</span>}

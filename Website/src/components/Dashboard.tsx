@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { TickerBundle, WatchlistRow, PredictionData, DashboardView } from "@/lib/types"; 
 import Sidebar from "./Sidebar";
 import TickerTape from "./TickerTape";
@@ -16,7 +16,8 @@ import MarketView from "./MarketView";
 import ScreenerView from "./ScreenerView";
 import AccuracyView from "./AccuracyView";
 import CompareView from "./CompareView";
-import { dayLabel } from "@/lib/format";
+import StrategyView from "./StrategyView";
+import { dayLabel, fmtMoney, fmtPct } from "@/lib/format";
 
 const RANGES = [
   { label: "1M", days: 22 },
@@ -51,8 +52,29 @@ export default function Dashboard({
   const [analysisRows, setAnalysisRows] = useState(initialPredictions);
   const [selectedPredictionDate, setSelectedPredictionDate] = useState(initialPredictionDate);
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [tickerMenuOpen, setTickerMenuOpen] = useState(false);
+  const [tickerSearch, setTickerSearch] = useState("");
   const [activeView, setActiveView] = useState<DashboardView>("stock");
   const [chartMode, setChartMode] = useState<"line" | "candlestick">("line");
+  const tickerMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (tickerMenuRef.current && !tickerMenuRef.current.contains(e.target as Node)) {
+        setTickerMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredWatchlist = useMemo(() => {
+    if (!tickerSearch.trim()) return watchlist;
+    const q = tickerSearch.toLowerCase().trim();
+    return watchlist.filter(
+      (w) => w.ticker.toLowerCase().includes(q) || w.name.toLowerCase().includes(q)
+    );
+  }, [watchlist, tickerSearch]);
 
   const currentPrediction = analysisRows.find((prediction) => prediction.Ticker === bundle.ticker) ?? null;
   const predictionLabel = selectedPredictionDate ? dayLabel(selectedPredictionDate) : null;
@@ -127,7 +149,7 @@ export default function Dashboard({
         onSelectView={handleSelectView}
       />
 
-      <div>
+      <div className="appContent">
         <TickerTape predictions={analysisRows} />
 
         {/* ==================== Stock View ==================== */}
@@ -135,7 +157,80 @@ export default function Dashboard({
           <main className={loading ? "loadingOverlay" : ""}>
             <div className="pageHead">
               <div className="tickerTitle">
-                <span className="sym mono">{bundle.ticker.replace(".NS", "")}</span>
+                <div className="tickerPicker" ref={tickerMenuRef}>
+                  <button
+                    className={`tickerPickerBtn ${tickerMenuOpen ? "open" : ""}`}
+                    onClick={() => setTickerMenuOpen((open) => !open)}
+                    title="Click to switch ticker"
+                  >
+                    <span className="sym mono">{bundle.ticker.replace(".NS", "")}</span>
+                    <svg
+                      className={`tickerPickerChevron ${tickerMenuOpen ? "open" : ""}`}
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  {tickerMenuOpen && (
+                    <div className="tickerMenu">
+                      <div className="tickerMenuSearchWrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input
+                          type="text"
+                          className="tickerMenuSearch"
+                          placeholder="Search ticker or name…"
+                          value={tickerSearch}
+                          onChange={(e) => setTickerSearch(e.target.value)}
+                          autoFocus
+                        />
+                        {tickerSearch && (
+                          <button className="tickerMenuClear" onClick={() => setTickerSearch("")}>×</button>
+                        )}
+                      </div>
+                      <div className="tickerMenuList">
+                        {filteredWatchlist.map((row) => {
+                          const isActive = row.ticker === bundle.ticker;
+                          return (
+                            <button
+                              key={row.ticker}
+                              className={`tickerMenuItem ${isActive ? "active" : ""}`}
+                              onClick={() => {
+                                handleSelectTicker(row.ticker);
+                                setTickerMenuOpen(false);
+                                setTickerSearch("");
+                              }}
+                            >
+                              <div className="tickerMenuItemLeft">
+                                <span className="tickerMenuItemSym mono">{row.ticker.replace(".NS", "")}</span>
+                                <span className="tickerMenuItemName">{row.name}</span>
+                              </div>
+                              <div className="tickerMenuItemRight">
+                                <span className="tickerMenuItemPrice mono">{fmtMoney(row.price)}</span>
+                                <span className={`chip ${row.changePct >= 0 ? "up" : "down"}`}>
+                                  {fmtPct(row.changePct)}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {filteredWatchlist.length === 0 && (
+                          <div className="tickerMenuEmpty">No tickers found</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <span className="name">{bundle.name}</span>
                 <span className="badgeLive">Live · Supabase</span>
               </div>
@@ -231,9 +326,10 @@ export default function Dashboard({
               <div>
                 <CompanySentimentCard sentiment={bundle.companySentiment} />
                 <NewsFeed news={bundle.news} />
-                <ModelInsights bundle={bundle} />
               </div>
             </section>
+
+            <ModelInsights bundle={bundle} />
 
             <PredictionVsActualChart
               predictionHistory={bundle.predictionHistory}
@@ -267,6 +363,13 @@ export default function Dashboard({
         {activeView === "compare" && (
           <main>
             <CompareView watchlist={watchlist} onSelectTicker={handleSelectTicker} />
+          </main>
+        )}
+
+        {/* ==================== Strategy View ==================== */}
+        {activeView === "strategy" && (
+          <main className="strategyMain">
+            <StrategyView />
           </main>
         )}
       </div>
