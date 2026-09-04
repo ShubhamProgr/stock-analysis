@@ -17,6 +17,7 @@ import ScreenerView from "./ScreenerView";
 import AccuracyView from "./AccuracyView";
 import CompareView from "./CompareView";
 import StrategyView from "./StrategyView";
+import ThemeToggle from "./ThemeToggle";
 import { dayLabel, fmtMoney, fmtPct } from "@/lib/format";
 
 const RANGES = [
@@ -273,6 +274,7 @@ export default function Dashboard({
                     </button>
                   ))}
                 </div>
+                <ThemeToggle variant="button" />
               </div>
             </div>
 

@@ -2,6 +2,7 @@
 
 import type { WatchlistRow, DashboardView } from "@/lib/types";
 import { fmtMoney, fmtPct, sparklinePath } from "@/lib/format";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = {
   watchlist: WatchlistRow[];
@@ -122,6 +123,10 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
           <div className="brandName">Stock Analytics</div>
           <div className="brandSub">By Shubham</div>
         </div>
+      </div>
+
+      <div className="railThemeToggle">
+        <ThemeToggle variant="segmented" />
       </div>
 
       {/* View-level navigation */}

@@ -105,6 +105,7 @@ body {
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
   line-height: 1.5;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 ::selection {
   background: var(--accent-wash);
@@ -176,6 +177,80 @@ button {
   font-size: 10.5px;
   color: var(--muted);
   letter-spacing: 0.04em;
+}
+
+/* ---------- Theme Switcher ---------- */
+.railThemeToggle {
+  padding: 0 4px;
+}
+
+.themeSwitchWrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.themeOption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.themeOption:hover {
+  color: var(--ink);
+}
+
+.themeOption.active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+.themeOption svg {
+  flex-shrink: 0;
+}
+
+.themeToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.themeToggleBtn:hover {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--ink-2);
+}
+
+.themeToggleBtn .themeIcon {
+  flex-shrink: 0;
 }
 
 .navPrimary {
