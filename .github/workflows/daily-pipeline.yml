@@ -56,6 +56,17 @@ jobs:
         run: |
           python "Stock Analysis/Reports.py"
 
+      - name: 7. Post Daily Predictions to Instagram
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+        run: |
+          python "Stock Analysis/Instagram_Publisher.py"
+
       - name: Upload Output Artifacts
         uses: actions/upload-artifact@v4
         if: always() 
