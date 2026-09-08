@@ -380,15 +380,15 @@ def generate_image(
 # ─────────────────────────────────────────
 def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
     """
-    Upload PNG bytes to Cloudinary.
+    Upload PNG bytes to Cloudinary under stock_analytics/.
+    Each day's image is kept permanently for a full post history.
     Returns (secure_url, public_id_with_folder).
     """
     result = cloudinary.uploader.upload(
         image_bytes,
         public_id=public_id,
-        folder="stock_predictions",
+        folder="stock_analytics",
         resource_type="image",
-        overwrite=True,
         format="jpg",          # Instagram requires JPEG
         transformation=[
             {"width": 1080, "height": 1080, "crop": "fill"},
@@ -396,15 +396,6 @@ def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
         ],
     )
     return result["secure_url"], result["public_id"]
-
-
-def delete_from_cloudinary(public_id: str):
-    """Remove image from Cloudinary after successful Instagram post."""
-    try:
-        cloudinary.uploader.destroy(public_id, resource_type="image")
-        print(f"  Cloudinary asset deleted: {public_id}")
-    except Exception as e:
-        print(f"  Warning: could not delete Cloudinary asset: {e}")
 
 
 # ─────────────────────────────────────────
@@ -518,16 +509,13 @@ def main(preview_only: bool = False):
     # ── 4. Build caption ──
     caption = build_caption(gainers, losers, prediction_date)
 
-    # ── 5. Publish to Instagram ──
-    print("\n[4/5] Publishing to Instagram...")
+    # ── 4. Publish to Instagram ──
+    print("\n[4/4] Publishing to Instagram...")
     media_id = publish_to_instagram(image_url, caption)
-
-    # ── 6. Cleanup Cloudinary ──
-    print("\n[5/5] Cleaning up Cloudinary asset...")
-    delete_from_cloudinary(cloudinary_id)
 
     print(f"\n{'=' * 55}")
     print(f"  [OK] Posted successfully!  Media ID: {media_id}")
+    print(f"  Image stored at: stock_analytics/{public_id_name}")
     print(f"{'=' * 55}\n")
 
 
