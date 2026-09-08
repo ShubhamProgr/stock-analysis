@@ -502,7 +502,7 @@ def main(preview_only: bool = False):
 
     # ── 3. Upload to Cloudinary ──
     print("\n[3/5] Uploading to Cloudinary...")
-    public_id_name = f"daily_{prediction_date.strftime('%Y%m%d')}"
+    public_id_name = f"daily_{prediction_date.strftime('%Y%m%d')}_{now.strftime('%H%M%S')}"
     image_url, cloudinary_id = upload_to_cloudinary(image_bytes, public_id_name)
     print(f"  Public URL: {image_url}")
 
