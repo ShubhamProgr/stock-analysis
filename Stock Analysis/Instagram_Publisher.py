@@ -458,6 +458,7 @@ def build_caption(gainers: list[dict], losers: list[dict], prediction_date: date
     )
     return textwrap.dedent(f"""
         📊 Nifty50 AI Predictions — {date_str}
+        For more info go to https://stockanalytics.me
 
         🟢 Top 5 Predicted Gainers:
         {g_lines}
@@ -465,8 +466,7 @@ def build_caption(gainers: list[dict], losers: list[dict], prediction_date: date
         🔴 Top 5 Predicted Losers:
         {l_lines}
 
-        ⚠️ AI-generated | Not financial advice
-        Follow for daily pre-market insights!
+        The graphics is AI generated.
 
         #Nifty50 #NSE #StockMarket #IndianStocks #StockPrediction
         #TradingView #Sensex #QuantTrading #AlgoTrading #StockAnalysis
