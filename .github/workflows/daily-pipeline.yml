@@ -12,6 +12,7 @@ jobs:
     
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
       NEWS_FILE: "data/News.xlsx" 
       SENTIMENT_OUTPUT_FILE: "data/Company_FinBERT_Sentiments - ALL.xlsx"
 
