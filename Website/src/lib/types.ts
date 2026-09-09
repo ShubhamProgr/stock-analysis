@@ -162,6 +162,8 @@ export type AccuracyRow = {
   directionAccuracy: number;
   avgError: number;
   avgAbsError: number;
+  rmse: number;
+  r2: number;
 };
 
 export type AccuracyTimeSeries = {
@@ -178,6 +180,7 @@ export type AccuracyData = {
     mape: number;
     directionAccuracy: number;
     avgError: number;
+    rmse?: number;
   };
   perTicker: AccuracyRow[];
   timeSeries: AccuracyTimeSeries[];

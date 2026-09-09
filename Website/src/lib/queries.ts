@@ -579,28 +579,37 @@ export async function getOHLCData(ticker: string, days: number): Promise<OHLCPoi
  * Accuracy metrics computed from prediction_vs_actual.
  */
 export async function getAccuracyData(): Promise<AccuracyData> {
-  // Get all prediction vs actual data with company names
+  // Get all prediction vs actual data with company names and latest model R2
   const rows = await query<{
     ticker: string;
     name: string | null;
     date: string;
     predicted: string;
     actual: string;
+    r2_score: string | null;
   }>(`
+    WITH latest_fa AS (
+      SELECT DISTINCT ON ("Ticker") "Ticker", "R2_Score" as r2_score
+      FROM final_analysis
+      WHERE "R2_Score" IS NOT NULL
+      ORDER BY "Ticker", "Prediction_Date" DESC
+    )
     SELECT pva."Ticker" as ticker,
            ci."longName" as name,
            pva."Date" as date,
            pva."Predicted_Closing_Price" as predicted,
-           pva."Actual_Closing_Price" as actual
+           pva."Actual_Closing_Price" as actual,
+           fa.r2_score as r2_score
     FROM prediction_vs_actual pva
     LEFT JOIN company_info ci ON pva."Ticker" = ci."Ticker"
+    LEFT JOIN latest_fa fa ON pva."Ticker" = fa."Ticker"
     WHERE pva."Actual_Closing_Price" > 0
     ORDER BY pva."Date" ASC
   `);
 
   if (rows.length === 0) {
     return {
-      overall: { totalPredictions: 0, mape: 0, directionAccuracy: 0, avgError: 0 },
+      overall: { totalPredictions: 0, mape: 0, directionAccuracy: 0, avgError: 0, rmse: 0 },
       perTicker: [],
       timeSeries: [],
     };
@@ -609,6 +618,7 @@ export async function getAccuracyData(): Promise<AccuracyData> {
   // Time series (per prediction)
   const timeSeries: AccuracyTimeSeries[] = [];
   let totalAbsError = 0;
+  let totalSquaredError = 0;
   let totalPctError = 0;
   let totalDirectionCorrect = 0;
   let total = 0;
@@ -616,8 +626,11 @@ export async function getAccuracyData(): Promise<AccuracyData> {
   // Per-ticker aggregation
   const tickerMap = new Map<string, {
     name: string;
+    r2: number | null;
     errors: number[];
     absErrors: number[];
+    squaredErrors: number[];
+    actuals: number[];
     pctErrors: number[];
     directionCorrect: number;
     count: number;
@@ -630,15 +643,15 @@ export async function getAccuracyData(): Promise<AccuracyData> {
 
     const error = predicted - actual;
     const absError = Math.abs(error);
+    const squaredError = error * error;
     const pctError = (absError / actual) * 100;
 
     // We need prior close to check direction — approximate from actual vs predicted direction
-    // Since we predict next close, direction correct if both predicted and actual moved same way relative to... 
-    // We'll use a simpler metric: was error less than 2% (good prediction)
     const directionCorrect = (predicted >= actual && actual >= 0) || (predicted < actual && actual < 0)
       ? true : pctError < 2; // fallback: within 2% counts as correct direction
 
     totalAbsError += absError;
+    totalSquaredError += squaredError;
     totalPctError += pctError;
     if (directionCorrect) totalDirectionCorrect++;
     total++;
@@ -654,14 +667,22 @@ export async function getAccuracyData(): Promise<AccuracyData> {
     // Per ticker
     const existing = tickerMap.get(r.ticker) ?? {
       name: r.name ?? r.ticker,
+      r2: r.r2_score !== null && r.r2_score !== undefined ? parseFloat(r.r2_score) : null,
       errors: [],
       absErrors: [],
+      squaredErrors: [],
+      actuals: [],
       pctErrors: [],
       directionCorrect: 0,
       count: 0,
     };
+    if (existing.r2 === null && r.r2_score !== null && r.r2_score !== undefined) {
+      existing.r2 = parseFloat(r.r2_score);
+    }
     existing.errors.push(error);
     existing.absErrors.push(absError);
+    existing.squaredErrors.push(squaredError);
+    existing.actuals.push(actual);
     existing.pctErrors.push(pctError);
     if (directionCorrect) existing.directionCorrect++;
     existing.count++;
@@ -673,6 +694,17 @@ export async function getAccuracyData(): Promise<AccuracyData> {
     const mape = data.pctErrors.reduce((a, b) => a + b, 0) / data.count;
     const avgError = data.errors.reduce((a, b) => a + b, 0) / data.count;
     const avgAbsError = data.absErrors.reduce((a, b) => a + b, 0) / data.count;
+    const rmse = Math.sqrt(data.squaredErrors.reduce((a, b) => a + b, 0) / data.count);
+
+    // R2 score: model R2 from final_analysis, fallback to out-of-sample R2
+    let r2 = data.r2 ?? 0;
+    if (data.r2 === null && data.count > 1) {
+      const meanActual = data.actuals.reduce((a, b) => a + b, 0) / data.count;
+      const ssTot = data.actuals.reduce((a, y) => a + Math.pow(y - meanActual, 2), 0);
+      const ssRes = data.squaredErrors.reduce((a, b) => a + b, 0);
+      r2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+    }
+
     perTicker.push({
       ticker,
       name: data.name,
@@ -681,6 +713,8 @@ export async function getAccuracyData(): Promise<AccuracyData> {
       directionAccuracy: (data.directionCorrect / data.count) * 100,
       avgError,
       avgAbsError,
+      rmse,
+      r2,
     });
   }
 
@@ -692,6 +726,7 @@ export async function getAccuracyData(): Promise<AccuracyData> {
       mape: total > 0 ? totalPctError / total : 0,
       directionAccuracy: total > 0 ? (totalDirectionCorrect / total) * 100 : 0,
       avgError: total > 0 ? totalAbsError / total : 0,
+      rmse: total > 0 ? Math.sqrt(totalSquaredError / total) : 0,
     },
     perTicker,
     timeSeries,

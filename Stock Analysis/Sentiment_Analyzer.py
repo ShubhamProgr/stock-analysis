@@ -151,306 +151,342 @@ def clean_text(text):
     text = re.sub(r'[^\w\s]', '', text)
     return text.strip()
 
-def analyze_article_sentiment(article_text, sentiment_analyzer):
-    """Analyze sentiment for a single article. Returns (label, confidence_score)."""
+def analyze_article_sentiment(article_text, sentiment_analyzer, company=None):
+    """
+    Analyze sentiment for a single article using net class probability (P_pos - P_neg).
+    Extracts company-relevant sentences if multi-company/sentence text is detected.
+    Returns (label, raw_confidence, net_score).
+    """
+    # If company is provided, prioritize sentences mentioning the company
+    if company and len(article_text) > 80:
+        sentences = re.split(r'(?<=[.?!;])\s+', article_text)
+        if len(sentences) > 1:
+            matched_sentences = [
+                s for s in sentences
+                if re.search(rf"\b{re.escape(company.lower())}\b", s.lower())
+            ]
+            if matched_sentences:
+                article_text = " ".join(matched_sentences)
+
     chunks = chunk_text(article_text, words_per_chunk=100)
     if not chunks:
-        return "NEUTRAL", 0.0
+        return "NEUTRAL", 0.0, 0.0
 
-    cumulative_scores = {"POSITIVE": 0, "NEGATIVE": 0, "NEUTRAL": 0}
-    valid_chunks = 0
+    chunk_net_scores = []
+    chunk_confidences = []
 
     for chunk in chunks:
         if not chunk.strip():
             continue
         try:
-            sentiment = sentiment_analyzer(chunk[:512])[0]
-            label = sentiment['label'].upper()
-            score = sentiment['score']
-            cumulative_scores[label] += score
-            valid_chunks += 1
+            # Request all class scores to compute true net sentiment
+            results = sentiment_analyzer(chunk[:512], top_k=None)
+            label_scores = {item['label'].upper(): item['score'] for item in results}
+
+            p_pos = label_scores.get('POSITIVE', 0.0)
+            p_neg = label_scores.get('NEGATIVE', 0.0)
+            p_neu = label_scores.get('NEUTRAL', 0.0)
+
+            # Net sentiment: range [-1.0, 1.0]
+            net_chunk = p_pos - p_neg
+            chunk_net_scores.append(net_chunk)
+
+            # Confidence of the dominant class
+            chunk_confidences.append(max(p_pos, p_neg, p_neu))
         except Exception as e:
             print(f"  Error analyzing chunk: {str(e)[:60]}")
             continue
 
-    if valid_chunks == 0:
-        return "NEUTRAL", 0.0
+    if not chunk_net_scores:
+        return "NEUTRAL", 0.0, 0.0
 
-    overall_label = max(cumulative_scores, key=cumulative_scores.get)
-    overall_score = cumulative_scores[overall_label] / valid_chunks
+    avg_net_score = float(np.mean(chunk_net_scores))
+    avg_confidence = float(np.mean(chunk_confidences))
 
-    return overall_label, overall_score
+    if avg_net_score > 0.08:
+        label = "POSITIVE"
+    elif avg_net_score < -0.08:
+        label = "NEGATIVE"
+    else:
+        label = "NEUTRAL"
 
-# ==================== Main Process ====================
-try:
-    print(" Loading raw news from Supabase 'News' table...")
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    return label, avg_confidence, avg_net_score
 
-    with engine.connect() as conn:
-        df = pd.read_sql('SELECT "Company", "Content", "PublicationDate" FROM "News"', conn)
+def run_sentiment_analysis():
+    # ==================== Main Process ====================
+    try:
+        print(" Loading raw news from Supabase 'News' table...")
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
-    if df.empty:
-        raise ValueError(" No news data found in the 'News' table!")
+        with engine.connect() as conn:
+            df = pd.read_sql('SELECT "Company", "Content", "PublicationDate" FROM "News"', conn)
 
-    print(f" Loaded {len(df)} rows from the database\n")
+        if df.empty:
+            raise ValueError(" No news data found in the 'News' table!")
 
-    # Load sentiment model
-    print(" Loading FinBERT sentiment model...")
-    finbert_model = "yiyanghkust/finbert-tone"
-    tokenizer = BertTokenizer.from_pretrained(finbert_model)
-    model = BertForSequenceClassification.from_pretrained(finbert_model)
-    sentiment_analyzer = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
-    print(" Model loaded\n")
+        print(f" Loaded {len(df)} rows from the database\n")
 
-    # ==================== Score Each Article Individually ====================
-    print(" Analyzing sentiment per article...")
-    article_results = []
-    missing_tickers = set()
+        # Load sentiment model
+        print(" Loading FinBERT sentiment model...")
+        finbert_model = "yiyanghkust/finbert-tone"
+        tokenizer = BertTokenizer.from_pretrained(finbert_model)
+        model = BertForSequenceClassification.from_pretrained(finbert_model)
+        sentiment_analyzer = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
+        print(" Model loaded\n")
 
-    for idx, row in df.iterrows():
-        company = row['Company']
-        content = clean_text(str(row['Content']))
-        pub_date = row['PublicationDate']
+        # ==================== Score Each Article Individually ====================
+        print(" Analyzing sentiment per article with continuous net-probability scoring...")
+        article_results = []
+        missing_tickers = set()
 
-        if not content.strip():
-            continue
+        for idx, row in df.iterrows():
+            company = row['Company']
+            content = clean_text(str(row['Content']))
+            pub_date = row['PublicationDate']
 
-        # Get ticker
-        ticker = get_ticker(company)
-        if ticker is None:
-            missing_tickers.add(company)
-
-        # Parse publication date
-        try:
-            if hasattr(pub_date, 'date'):
-                article_date = pub_date.date()
-            else:
-                article_date = pd.to_datetime(pub_date).date()
-        except Exception:
-            article_date = datetime.now().date()
-
-        # Score this individual article
-        label, score = analyze_article_sentiment(content, sentiment_analyzer)
-
-        # Convert to signed score: POSITIVE → +score, NEGATIVE → -score, NEUTRAL → 0
-        if label == "POSITIVE":
-            signed_score = score
-        elif label == "NEGATIVE":
-            signed_score = -score
-        else:
-            signed_score = 0.0
-
-        article_results.append({
-            "Company": company,
-            "Ticker": ticker,
-            "Date": article_date,
-            "Sentiment": label,
-            "Raw_Score": score,
-            "Signed_Score": signed_score,
-        })
-
-        if (idx + 1) % 25 == 0:
-            print(f"  Processed {idx + 1}/{len(df)} articles...")
-
-    print(f" Scored {len(article_results)} articles individually\n")
-
-    if not article_results:
-        raise ValueError("No articles could be scored!")
-
-    article_df = pd.DataFrame(article_results)
-    today = datetime.now().date()
-
-    # ==================== Aggregate by Company + Date ====================
-    print(" Aggregating daily sentiments...")
-    daily_sentiments = []
-
-    for (company, date), group in article_df.groupby(["Company", "Date"]):
-        ticker = group["Ticker"].iloc[0]
-        pos_count = int((group["Sentiment"] == "POSITIVE").sum())
-        neg_count = int((group["Sentiment"] == "NEGATIVE").sum())
-        neu_count = int((group["Sentiment"] == "NEUTRAL").sum())
-        article_count = len(group)
-
-        # Average signed score for the day
-        avg_signed_score = group["Signed_Score"].mean()
-
-        # Derive daily label from signed score
-        if avg_signed_score > 0.05:
-            daily_label = "POSITIVE"
-        elif avg_signed_score < -0.05:
-            daily_label = "NEGATIVE"
-        else:
-            daily_label = "NEUTRAL"
-
-        daily_sentiments.append({
-            "Company": company,
-            "Ticker": ticker,
-            "Date": date,
-            "Sentiment": daily_label,
-            "Score": round(avg_signed_score, 4),
-            "Positive_Count": pos_count,
-            "Negative_Count": neg_count,
-            "Neutral_Count": neu_count,
-            "Article_Count": article_count,
-        })
-
-    daily_df = pd.DataFrame(daily_sentiments)
-    print(f" Generated {len(daily_df)} daily sentiment records\n")
-
-    # ==================== Recency-Weighted Overall Sentiment ====================
-    print(" Computing recency-weighted overall sentiments...")
-    overall_sentiments = []
-
-    for company, group in article_df.groupby("Company"):
-        ticker = group["Ticker"].iloc[0]
-        article_count = len(group)
-
-        # Exponential decay: articles from today have weight 1.0,
-        # articles from 7 days ago have weight ~0.5, 30 days ago ~0.05
-        group = group.copy()
-        group["days_ago"] = (today - group["Date"]).apply(lambda d: d.days if hasattr(d, 'days') else 0)
-        group["weight"] = np.exp(-0.1 * group["days_ago"])
-
-        # Weighted average of signed scores
-        if group["weight"].sum() > 0:
-            weighted_score = np.average(group["Signed_Score"], weights=group["weight"])
-        else:
-            weighted_score = 0.0
-
-        if weighted_score > 0.05:
-            overall_label = "POSITIVE"
-        elif weighted_score < -0.05:
-            overall_label = "NEGATIVE"
-        else:
-            overall_label = "NEUTRAL"
-
-        # Reconstruct a combined paragraph for backward compatibility
-        paragraph = " ".join(df[df["Company"] == company]["Content"].dropna().astype(str).tolist())
-
-        overall_sentiments.append({
-            "Company": company,
-            "Ticker": ticker,
-            "ArticleCount": article_count,
-            "Paragraph": paragraph,
-            "Sentiment": overall_label,
-            "Score": round(abs(weighted_score), 4),
-        })
-
-        print(f"  {company}: {overall_label} (weighted score: {weighted_score:.4f})")
-
-    # ==================== Write Daily Sentiments to New Table ====================
-    print(f"\n Syncing daily sentiments to Supabase Postgres...")
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS company_daily_sentiments (
-                "Company" TEXT,
-                "Ticker" TEXT,
-                "Date" DATE,
-                "Sentiment" TEXT,
-                "Score" DOUBLE PRECISION,
-                "Positive_Count" INTEGER,
-                "Negative_Count" INTEGER,
-                "Neutral_Count" INTEGER,
-                "Article_Count" INTEGER,
-                PRIMARY KEY ("Ticker", "Date")
-            )
-        """))
-
-        # Clear old data and re-insert to stay in sync with the News table
-        conn.execute(text("DELETE FROM company_daily_sentiments"))
-
-        insert_daily = text("""
-            INSERT INTO company_daily_sentiments
-            ("Company", "Ticker", "Date", "Sentiment", "Score",
-             "Positive_Count", "Negative_Count", "Neutral_Count", "Article_Count")
-            VALUES (:company, :ticker, :date, :sentiment, :score,
-                    :pos_count, :neg_count, :neu_count, :article_count)
-            ON CONFLICT ("Ticker", "Date") DO UPDATE SET
-                "Company" = EXCLUDED."Company",
-                "Sentiment" = EXCLUDED."Sentiment",
-                "Score" = EXCLUDED."Score",
-                "Positive_Count" = EXCLUDED."Positive_Count",
-                "Negative_Count" = EXCLUDED."Negative_Count",
-                "Neutral_Count" = EXCLUDED."Neutral_Count",
-                "Article_Count" = EXCLUDED."Article_Count"
-        """)
-
-        for row in daily_sentiments:
-            if row["Ticker"] is None:
+            if not content.strip():
                 continue
-            conn.execute(insert_daily, {
-                "company": row["Company"],
-                "ticker": row["Ticker"],
-                "date": row["Date"],
-                "sentiment": row["Sentiment"],
-                "score": row["Score"],
-                "pos_count": row["Positive_Count"],
-                "neg_count": row["Negative_Count"],
-                "neu_count": row["Neutral_Count"],
-                "article_count": row["Article_Count"],
+
+            # Get ticker
+            ticker = get_ticker(company)
+            if ticker is None:
+                missing_tickers.add(company)
+
+            # Parse publication date
+            try:
+                if hasattr(pub_date, 'date'):
+                    article_date = pub_date.date()
+                else:
+                    article_date = pd.to_datetime(pub_date).date()
+            except Exception:
+                article_date = datetime.now().date()
+
+            # Score this individual article with company context
+            label, confidence, net_score = analyze_article_sentiment(content, sentiment_analyzer, company=company)
+
+            article_results.append({
+                "Company": company,
+                "Ticker": ticker,
+                "Date": article_date,
+                "Sentiment": label,
+                "Raw_Confidence": confidence,
+                "Signed_Score": net_score,
             })
 
-    print(f" Daily sentiments synced: {len([r for r in daily_sentiments if r['Ticker']])} rows")
+            if (idx + 1) % 25 == 0 or (idx + 1) == len(df):
+                print(f"  Processed {idx + 1}/{len(df)} articles...")
 
-    # ==================== Write Overall Sentiments (Backward Compatible) ====================
-    print(f" Syncing overall sentiments to company_finbert_sentiments...")
+        print(f" Scored {len(article_results)} articles individually\n")
 
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS company_finbert_sentiments (
-                "Company" TEXT PRIMARY KEY,
-                "Ticker" TEXT,
-                "ArticleCount" INTEGER,
-                "Paragraph" TEXT,
-                "Sentiment" TEXT,
-                "Score" DOUBLE PRECISION
-            )
-        """))
+        if not article_results:
+            raise ValueError("No articles could be scored!")
 
-        insert_query = text("""
-            INSERT INTO company_finbert_sentiments
-            ("Company", "Ticker", "ArticleCount", "Paragraph", "Sentiment", "Score")
-            VALUES (:company, :ticker, :article_count, :paragraph, :sentiment, :score)
-            ON CONFLICT ("Company") DO UPDATE SET
-                "Ticker" = EXCLUDED."Ticker",
-                "ArticleCount" = EXCLUDED."ArticleCount",
-                "Paragraph" = EXCLUDED."Paragraph",
-                "Sentiment" = EXCLUDED."Sentiment",
-                "Score" = EXCLUDED."Score"
-        """)
+        article_df = pd.DataFrame(article_results)
+        today = datetime.now().date()
 
-        for row in overall_sentiments:
-            conn.execute(insert_query, {
-                "company": row["Company"],
-                "ticker": row["Ticker"],
-                "article_count": row["ArticleCount"],
-                "paragraph": row["Paragraph"],
-                "sentiment": row["Sentiment"],
-                "score": row["Score"],
+        # ==================== Aggregate by Company + Date ====================
+        print(" Aggregating daily sentiments...")
+        daily_sentiments = []
+
+        for (company, date), group in article_df.groupby(["Company", "Date"]):
+            ticker = group["Ticker"].iloc[0]
+            pos_count = int((group["Sentiment"] == "POSITIVE").sum())
+            neg_count = int((group["Sentiment"] == "NEGATIVE").sum())
+            neu_count = int((group["Sentiment"] == "NEUTRAL").sum())
+            article_count = len(group)
+
+            # Average net score for the day
+            avg_net_score = group["Signed_Score"].mean()
+
+            # Slight daily damping if only 1 article to avoid extreme daily outliers
+            daily_damped_score = avg_net_score * (article_count / (article_count + 1.0))
+
+            if daily_damped_score > 0.05:
+                daily_label = "POSITIVE"
+            elif daily_damped_score < -0.05:
+                daily_label = "NEGATIVE"
+            else:
+                daily_label = "NEUTRAL"
+
+            daily_sentiments.append({
+                "Company": company,
+                "Ticker": ticker,
+                "Date": date,
+                "Sentiment": daily_label,
+                "Score": round(daily_damped_score, 4),
+                "Positive_Count": pos_count,
+                "Negative_Count": neg_count,
+                "Neutral_Count": neu_count,
+                "Article_Count": article_count,
             })
 
-    print(f" Overall sentiments synced: {len(overall_sentiments)} rows")
+        daily_df = pd.DataFrame(daily_sentiments)
+        print(f" Generated {len(daily_df)} daily sentiment records\n")
 
-    # Summary
-    print("\n" + "="*70)
-    print(" SUMMARY")
-    print("="*70)
-    print(f" Total articles scored individually: {len(article_results)}")
-    print(f" Daily sentiment records created: {len(daily_df)}")
-    print(f" Companies with overall sentiment: {len(overall_sentiments)}")
-    print(f" Companies with missing tickers: {len(missing_tickers)}")
+        # ==================== Recency-Weighted Overall Sentiment with Bayesian Shrinkage ====================
+        print(" Computing recency-weighted overall sentiments with Bayesian shrinkage...")
+        overall_sentiments = []
 
-    if missing_tickers:
-        print(f"\n Missing ticker mappings for:")
-        for company in sorted(missing_tickers):
-            print(f"   - {company}")
+        for company, group in article_df.groupby("Company"):
+            ticker = group["Ticker"].iloc[0]
+            article_count = len(group)
 
-    print(f"\n Sentiment analysis complete!")
-    print("="*70)
+            # Exponential decay: articles from today have weight 1.0,
+            # articles from 7 days ago have weight ~0.5, 30 days ago ~0.05
+            group = group.copy()
+            group["days_ago"] = (today - group["Date"]).apply(lambda d: d.days if hasattr(d, 'days') else 0)
+            group["weight"] = np.exp(-0.1 * group["days_ago"])
 
-except Exception as e:
-    print(f"\n ERROR: {str(e)}")
-    import traceback
-    traceback.print_exc()
+            w_sum = group["weight"].sum()
+
+            if w_sum > 0:
+                weighted_score = np.average(group["Signed_Score"], weights=group["weight"])
+            else:
+                weighted_score = 0.0
+
+            # Bayesian Shrinkage:
+            # Prevents companies with only 1 or 2 articles from pegging at 0.99.
+            # K = 2.5 represents neutral prior strength.
+            shrinkage_factor = w_sum / (w_sum + 2.5)
+            damped_score = weighted_score * shrinkage_factor
+
+            if damped_score > 0.05:
+                overall_label = "POSITIVE"
+            elif damped_score < -0.05:
+                overall_label = "NEGATIVE"
+            else:
+                overall_label = "NEUTRAL"
+
+            # Reconstruct a combined paragraph for backward compatibility
+            paragraph = " ".join(df[df["Company"] == company]["Content"].dropna().astype(str).tolist())
+
+            overall_sentiments.append({
+                "Company": company,
+                "Ticker": ticker,
+                "ArticleCount": article_count,
+                "Paragraph": paragraph,
+                "Sentiment": overall_label,
+                "Score": round(abs(damped_score), 4),
+            })
+
+            print(f"  {company}: {overall_label} (raw: {weighted_score:.4f}, damped: {damped_score:.4f}, weight: {w_sum:.2f}, articles: {article_count})")
+
+        # ==================== Write Daily Sentiments to New Table ====================
+        print(f"\n Syncing daily sentiments to Supabase Postgres...")
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS company_daily_sentiments (
+                    "Company" TEXT,
+                    "Ticker" TEXT,
+                    "Date" DATE,
+                    "Sentiment" TEXT,
+                    "Score" DOUBLE PRECISION,
+                    "Positive_Count" INTEGER,
+                    "Negative_Count" INTEGER,
+                    "Neutral_Count" INTEGER,
+                    "Article_Count" INTEGER,
+                    PRIMARY KEY ("Ticker", "Date")
+                )
+            """))
+
+            # Clear old data and re-insert to stay in sync with the News table
+            conn.execute(text("DELETE FROM company_daily_sentiments"))
+
+            insert_daily = text("""
+                INSERT INTO company_daily_sentiments
+                ("Company", "Ticker", "Date", "Sentiment", "Score",
+                 "Positive_Count", "Negative_Count", "Neutral_Count", "Article_Count")
+                VALUES (:company, :ticker, :date, :sentiment, :score,
+                        :pos_count, :neg_count, :neu_count, :article_count)
+                ON CONFLICT ("Ticker", "Date") DO UPDATE SET
+                    "Company" = EXCLUDED."Company",
+                    "Sentiment" = EXCLUDED."Sentiment",
+                    "Score" = EXCLUDED."Score",
+                    "Positive_Count" = EXCLUDED."Positive_Count",
+                    "Negative_Count" = EXCLUDED."Negative_Count",
+                    "Neutral_Count" = EXCLUDED."Neutral_Count",
+                    "Article_Count" = EXCLUDED."Article_Count"
+            """)
+
+            for row in daily_sentiments:
+                if row["Ticker"] is None:
+                    continue
+                conn.execute(insert_daily, {
+                    "company": row["Company"],
+                    "ticker": row["Ticker"],
+                    "date": row["Date"],
+                    "sentiment": row["Sentiment"],
+                    "score": row["Score"],
+                    "pos_count": row["Positive_Count"],
+                    "neg_count": row["Negative_Count"],
+                    "neu_count": row["Neutral_Count"],
+                    "article_count": row["Article_Count"],
+                })
+
+        print(f" Daily sentiments synced: {len([r for r in daily_sentiments if r['Ticker']])} rows")
+
+        # ==================== Write Overall Sentiments (Backward Compatible) ====================
+        print(f" Syncing overall sentiments to company_finbert_sentiments...")
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS company_finbert_sentiments (
+                    "Company" TEXT PRIMARY KEY,
+                    "Ticker" TEXT,
+                    "ArticleCount" INTEGER,
+                    "Paragraph" TEXT,
+                    "Sentiment" TEXT,
+                    "Score" DOUBLE PRECISION
+                )
+            """))
+
+            insert_query = text("""
+                INSERT INTO company_finbert_sentiments
+                ("Company", "Ticker", "ArticleCount", "Paragraph", "Sentiment", "Score")
+                VALUES (:company, :ticker, :article_count, :paragraph, :sentiment, :score)
+                ON CONFLICT ("Company") DO UPDATE SET
+                    "Ticker" = EXCLUDED."Ticker",
+                    "ArticleCount" = EXCLUDED."ArticleCount",
+                    "Paragraph" = EXCLUDED."Paragraph",
+                    "Sentiment" = EXCLUDED."Sentiment",
+                    "Score" = EXCLUDED."Score"
+            """)
+
+            for row in overall_sentiments:
+                conn.execute(insert_query, {
+                    "company": row["Company"],
+                    "ticker": row["Ticker"],
+                    "article_count": row["ArticleCount"],
+                    "paragraph": row["Paragraph"],
+                    "sentiment": row["Sentiment"],
+                    "score": row["Score"],
+                })
+
+        print(f" Overall sentiments synced: {len(overall_sentiments)} rows")
+
+        # Summary
+        print("\n" + "="*70)
+        print(" SUMMARY")
+        print("="*70)
+        print(f" Total articles scored individually: {len(article_results)}")
+        print(f" Daily sentiment records created: {len(daily_df)}")
+        print(f" Companies with overall sentiment: {len(overall_sentiments)}")
+        print(f" Companies with missing tickers: {len(missing_tickers)}")
+
+        if missing_tickers:
+            print(f"\n Missing ticker mappings for:")
+            for company in sorted(missing_tickers):
+                print(f"   - {company}")
+
+        print(f"\n Sentiment analysis complete!")
+        print("="*70)
+
+    except Exception as e:
+        print(f"\n ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    run_sentiment_analysis()

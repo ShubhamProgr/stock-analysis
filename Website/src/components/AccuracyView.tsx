@@ -20,7 +20,7 @@ type Props = {
   onSelectTicker: (ticker: string) => void;
 };
 
-type SortKey = "ticker" | "mape" | "directionAccuracy" | "totalPredictions" | "avgAbsError";
+type SortKey = "ticker" | "name" | "r2" | "mape" | "avgAbsError" | "rmse" | "directionAccuracy";
 type SortDir = "asc" | "desc";
 
 export default function AccuracyView({ onSelectTicker }: Props) {
@@ -50,10 +50,12 @@ export default function AccuracyView({ onSelectTicker }: Props) {
       let av = 0, bv = 0;
       switch (sortKey) {
         case "ticker": return sortDir === "asc" ? a.ticker.localeCompare(b.ticker) : b.ticker.localeCompare(a.ticker);
+        case "name": return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+        case "r2": av = a.r2; bv = b.r2; break;
         case "mape": av = a.mape; bv = b.mape; break;
-        case "directionAccuracy": av = a.directionAccuracy; bv = b.directionAccuracy; break;
-        case "totalPredictions": av = a.totalPredictions; bv = b.totalPredictions; break;
         case "avgAbsError": av = a.avgAbsError; bv = b.avgAbsError; break;
+        case "rmse": av = a.rmse; bv = b.rmse; break;
+        case "directionAccuracy": av = a.directionAccuracy; bv = b.directionAccuracy; break;
       }
       return sortDir === "asc" ? av - bv : bv - av;
     });
@@ -131,7 +133,11 @@ export default function AccuracyView({ onSelectTicker }: Props) {
       setSortDir((d) => d === "asc" ? "desc" : "asc");
     } else {
       setSortKey(key);
-      setSortDir(key === "mape" || key === "avgAbsError" ? "asc" : "desc");
+      setSortDir(
+        key === "mape" || key === "avgAbsError" || key === "rmse" || key === "name" || key === "ticker"
+          ? "asc"
+          : "desc"
+      );
     }
   }
 
@@ -199,7 +205,7 @@ export default function AccuracyView({ onSelectTicker }: Props) {
           <div className="sub">% of times predicted correct direction</div>
         </div>
         <div className="tile">
-          <div className="eyebrow">Avg Absolute Error</div>
+          <div className="eyebrow">MAE (Avg Error)</div>
           <div className="value mono">{fmtMoney(data.overall.avgError)}</div>
           <div className="sub">in rupees</div>
         </div>
@@ -320,26 +326,33 @@ export default function AccuracyView({ onSelectTicker }: Props) {
           <div className="cardTitle">Per-Ticker Accuracy</div>
         </div>
         <div className="screenerTableWrap">
-          <table className="screenerTable">
+          <table className="screenerTable accuracyTable">
             <thead>
               <tr>
                 <th onClick={() => handleSort("ticker")} className="sortable">Ticker{sortIndicator("ticker")}</th>
-                <th>Name</th>
+                <th onClick={() => handleSort("name")} className="sortable">Name{sortIndicator("name")}</th>
+                <th onClick={() => handleSort("r2")} className="sortable right">R²{sortIndicator("r2")}</th>
                 <th onClick={() => handleSort("mape")} className="sortable right">MAPE{sortIndicator("mape")}</th>
+                <th onClick={() => handleSort("avgAbsError")} className="sortable right">MAE{sortIndicator("avgAbsError")}</th>
+                <th onClick={() => handleSort("rmse")} className="sortable right">RMSE{sortIndicator("rmse")}</th>
                 <th onClick={() => handleSort("directionAccuracy")} className="sortable right">Direction{sortIndicator("directionAccuracy")}</th>
-                <th onClick={() => handleSort("avgAbsError")} className="sortable right">Avg |Error|{sortIndicator("avgAbsError")}</th>
-                <th onClick={() => handleSort("totalPredictions")} className="sortable right">Count{sortIndicator("totalPredictions")}</th>
               </tr>
             </thead>
             <tbody>
               {sortedTickers.map((r) => (
                 <tr key={r.ticker} onClick={() => onSelectTicker(r.ticker)} className="screenerRow">
-                  <td><span className="mono" style={{ fontWeight: 700 }}>{r.ticker.replace(".NS", "")}</span></td>
-                  <td className="screenerName">{r.name}</td>
+                  <td>
+                    <div className="accuracyTickerWrap">
+                      <span className="mono" style={{ fontWeight: 700 }}>{r.ticker.replace(".NS", "")}</span>
+                      <span className="accuracyCountBadge">N={r.totalPredictions}</span>
+                    </div>
+                  </td>
+                  <td className="accuracyName">{r.name}</td>
+                  <td className="right mono">{r.r2 > 0 ? r.r2.toFixed(3) : "—"}</td>
                   <td className={`right mono ${r.mape < 2 ? "pvGood" : r.mape < 5 ? "" : "pvCritical"}`}>{r.mape.toFixed(2)}%</td>
-                  <td className={`right mono ${r.directionAccuracy > 60 ? "pvGood" : ""}`}>{r.directionAccuracy.toFixed(0)}%</td>
                   <td className="right mono">{fmtMoney(r.avgAbsError)}</td>
-                  <td className="right mono">{r.totalPredictions}</td>
+                  <td className="right mono">{fmtMoney(r.rmse)}</td>
+                  <td className={`right mono ${r.directionAccuracy > 60 ? "pvGood" : ""}`}>{r.directionAccuracy.toFixed(0)}%</td>
                 </tr>
               ))}
             </tbody>
