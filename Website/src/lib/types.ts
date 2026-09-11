@@ -4,6 +4,19 @@ export type PricePoint = {
   volume: number;
 };
 
+export type DailySentimentRow = {
+  date: string; // YYYY-MM-DD
+  sentiment: string;
+  score: number;
+  articleCount: number;
+};
+
+export type SentimentHistoryRow = {
+  date: string;
+  sentiment: string;
+  score: number; // 0-100
+};
+
 export type SentimentPoint = {
   date: string;
   sentiment: string;
@@ -27,6 +40,41 @@ export type CompanyInfo = {
   trailingPE: number | null;
   profitMargins: number | null;
   change52Week: number | null;
+  totalRevenue: number | null;
+  grossMargins: number | null;
+  operatingMargins: number | null;
+  totalCash: number | null;
+  totalDebt: number | null;
+  fullTimeEmployees: number | null;
+  sharesOutstanding: number | null;
+  floatShares: number | null;
+};
+
+/** Computed financial health score for a company */
+export type HealthScore = {
+  overall: number;       // 0–100
+  grade: string;         // A+ to F
+  marginQuality: number; // 0–100 sub-score
+  leverage: number;      // 0–100 sub-score
+  momentum: number;      // 0–100 sub-score
+  valuation: number;     // 0–100 sub-score
+};
+
+/** Peer comparison row for sector-level benchmarking */
+export type PeerComparisonRow = {
+  ticker: string;
+  name: string;
+  industry: string;
+  marketCap: number | null;
+  totalRevenue: number | null;
+  profitMargins: number | null;
+  grossMargins: number | null;
+  operatingMargins: number | null;
+  trailingPE: number | null;
+  change52Week: number | null;
+  totalCash: number | null;
+  totalDebt: number | null;
+  isCurrent: boolean;
 };
 
 export type CompanySentiment = {
@@ -84,6 +132,7 @@ export type TickerBundle = {
     cvRmse: number | null;
     topFeatures: Record<string, number> | null;
   } | null;
+  healthScore: HealthScore | null;
 };
 
 export interface PredictionData {
@@ -121,6 +170,22 @@ export type MarketOverviewRow = {
   r2: number;
   signal: "BUY" | "HOLD" | "SELL";
   confidence: number;
+};
+
+export type TopMoverRow = {
+  ticker: string;
+  name: string;
+  sector: string;
+  value: number; // Represents the % change, or volume multiple
+  type: "daily" | "predicted" | "volume";
+};
+
+export type TopMoversData = {
+  dailyGainers: TopMoverRow[];
+  dailyLosers: TopMoverRow[];
+  predictedGainers: TopMoverRow[];
+  predictedLosers: TopMoverRow[];
+  volumeSpikes: TopMoverRow[];
 };
 
 /** Screener — enriched row with fundamentals + prediction + signal */

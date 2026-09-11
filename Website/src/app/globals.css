@@ -829,9 +829,12 @@ main {
 
 .contentGrid {
   display: grid;
-  grid-template-columns: 1.62fr 1fr;
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+}
+.contentGrid > div {
+  min-width: 0;
 }
 .card {
   background: var(--surface);
@@ -2401,5 +2404,385 @@ table.strategies tr:last-child td {
   font-size: 12.5px;
   color: var(--ink-2);
   line-height: 1.55;
+}
+
+/* ==================== Company Fundamentals & Health Score ==================== */
+
+.fundSection {
+  margin-bottom: 24px;
+}
+
+.fundGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .fundGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.moversGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 860px) {
+  .moversGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fundHealthCard {
+  background: linear-gradient(to bottom right, var(--surface), var(--surface-2));
+}
+
+.fundHealthBody {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px !important;
+}
+
+.healthGauge {
+  position: relative;
+  width: 130px;
+  height: 80px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.healthGaugeLabel {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.healthGaugeGrade {
+  font-size: 32px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.healthGaugeScore {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.healthSubScores {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.healthSubScoreHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.healthSubScoreLabel {
+  color: var(--ink-2);
+}
+
+.healthSubScoreTrack {
+  height: 4px;
+  background: var(--grid);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.healthSubScoreFill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* Margins */
+.fundMarginRow {
+  display: grid;
+  grid-template-columns: 120px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fundMarginLabel {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.fundMarginTrack {
+  height: 6px;
+  background: var(--grid);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fundMarginFill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.fundMarginValue {
+  font-size: 13px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.fundKpi {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  margin-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.fundKpiLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fundKpiValue {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Balance Sheet */
+.fundBalanceGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fundBalanceItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fundBalanceLabel {
+  font-size: 12px;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fundBalanceValue {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.fundCashDebtBar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  gap: 2px;
+}
+
+.fundCashDebtCash {
+  background: var(--good);
+}
+
+.fundCashDebtDebt {
+  background: var(--critical);
+}
+
+.fundCashDebtLegend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink);
+  align-items: center;
+}
+
+/* Company Profile */
+.fundProfileGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+}
+
+.fundProfileRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fundProfileLabel {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.fundProfileValue {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+
+/* ==================== Peer Comparison Table ==================== */
+
+.peerTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: 13px;
+}
+
+.peerTable th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.peerTable th:first-child,
+.peerTable td:first-child {
+  text-align: left;
+}
+
+.peerTable td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+}
+
+.peerTable tr:last-child td {
+  border-bottom: none;
+}
+
+.peerTable tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.peerSortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.peerSortable:hover {
+  color: var(--ink);
+}
+
+.peerRowCurrent {
+  background: var(--accent-wash) !important;
+}
+
+.peerCurrentBadge {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.peerCard {
+  margin-bottom: 24px;
+}
+
+/* ==================== Sentiment Calendar ==================== */
+
+.sentimentCard {
+  margin-bottom: 14px;
+}
+
+.sentimentCalendarWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.sentimentCalendar {
+  display: inline-flex;
+  gap: 3px;
+  padding: 6px 0;
+}
+
+.sentimentWeek {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sentimentDay {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background-color: var(--surface-2);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  cursor: pointer;
+}
+
+.sentimentDay:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+.sentimentLegend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.rangeToggleSmall {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.rangeToggleSmall button {
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.rangeToggleSmall button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 

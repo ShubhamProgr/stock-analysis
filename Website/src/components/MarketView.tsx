@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { MarketOverviewRow } from "@/lib/types";
 import { fmtPct, fmtCompact } from "@/lib/format";
 import SectorHeatmap from "./SectorHeatmap";
+import TopMovers from "./TopMovers";
 
 type Props = {
   onSelectTicker: (ticker: string) => void;
@@ -125,68 +126,8 @@ export default function MarketView({ onSelectTicker }: Props) {
       </div>
 
       {/* Top Gainers / Losers + Sector Performance */}
-      <div className="marketGridBottom">
+      <TopMovers onSelectTicker={handleNavigateToStock}>
         <div className="card">
-          <div className="cardHead">
-            <div className="cardTitle">Top Predicted Gainers</div>
-          </div>
-          <div className="cardBody" style={{ padding: 0 }}>
-            <table className="marketTable">
-              <thead>
-                <tr>
-                  <th>Stock</th>
-                  <th>Sector</th>
-                  <th>Predicted</th>
-                  <th>Sentiment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topGainers.map((r) => (
-                  <tr key={r.ticker} onClick={() => handleNavigateToStock(r.ticker)} style={{ cursor: "pointer" }}>
-                    <td>
-                      <span className="mono" style={{ fontWeight: 700 }}>{r.ticker.replace(".NS", "")}</span>
-                      <span className="marketTableName">{r.name}</span>
-                    </td>
-                    <td className="marketTableSector">{r.sector}</td>
-                    <td><span className="chip up">{fmtPct(r.predictedReturn)}</span></td>
-                    <td><span className={`chip ${r.sentiment.toLowerCase()}`}>{r.sentiment}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="card">
-          <div className="cardHead">
-            <div className="cardTitle">Top Predicted Losers</div>
-          </div>
-          <div className="cardBody" style={{ padding: 0 }}>
-            <table className="marketTable">
-              <thead>
-                <tr>
-                  <th>Stock</th>
-                  <th>Sector</th>
-                  <th>Predicted</th>
-                  <th>Sentiment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topLosers.map((r) => (
-                  <tr key={r.ticker} onClick={() => handleNavigateToStock(r.ticker)} style={{ cursor: "pointer" }}>
-                    <td>
-                      <span className="mono" style={{ fontWeight: 700 }}>{r.ticker.replace(".NS", "")}</span>
-                      <span className="marketTableName">{r.name}</span>
-                    </td>
-                    <td className="marketTableSector">{r.sector}</td>
-                    <td><span className="chip down">{fmtPct(r.predictedReturn)}</span></td>
-                    <td><span className={`chip ${r.sentiment.toLowerCase()}`}>{r.sentiment}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="card" style={{ gridColumn: "1 / -1" }}>
           <div className="cardHead">
             <div className="cardTitle">Sector Performance</div>
           </div>
@@ -213,7 +154,7 @@ export default function MarketView({ onSelectTicker }: Props) {
             </div>
           </div>
         </div>
-      </div>
+      </TopMovers>
     </div>
   );
 }

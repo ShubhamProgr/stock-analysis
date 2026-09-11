@@ -19,6 +19,7 @@ Or use the --preview flag to only save the image locally (no upload):
 import os
 import sys
 import io
+import time
 import argparse
 import textwrap
 import requests
@@ -401,6 +402,16 @@ def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
 # ─────────────────────────────────────────
 # 5. META GRAPH API — INSTAGRAM PUBLISH
 # ─────────────────────────────────────────
+def _ig_get(endpoint: str, params: dict) -> dict:
+    """GET from the Meta Graph API and raise on error."""
+    url = f"{IG_API_BASE}{endpoint}"
+    resp = requests.get(url, params=params, timeout=30)
+    data = resp.json()
+    if "error" in data:
+        raise RuntimeError(f"Meta API error: {data['error']}")
+    return data
+
+
 def _ig_post(endpoint: str, payload: dict) -> dict:
     """POST to the Meta Graph API and raise on error."""
     url = f"{IG_API_BASE}{endpoint}"
@@ -411,11 +422,44 @@ def _ig_post(endpoint: str, payload: dict) -> dict:
     return data
 
 
+def wait_for_media_container(creation_id: str, timeout: int = 90, interval: int = 5) -> None:
+    """
+    Poll the Instagram media container status until it is FINISHED and ready to publish.
+    Meta docs: When an image or video container is created, Instagram fetches and processes
+    the media asynchronously. Calling /media_publish before status_code is 'FINISHED' results in
+    error 9007 / subcode 2207027 ('The media is not ready to be published. Please wait a moment.').
+    """
+    print(f"  Step 1.5: Waiting for media container {creation_id} to be ready...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        status_data = _ig_get(
+            f"/{creation_id}",
+            {
+                "fields": "status_code,status",
+                "access_token": IG_ACCESS_TOKEN,
+            },
+        )
+        status_code = status_data.get("status_code", "UNKNOWN")
+        print(f"    Container status: {status_code}")
+
+        if status_code == "FINISHED":
+            return
+        elif status_code == "ERROR":
+            raise RuntimeError(f"Media container processing failed on Meta's side: {status_data}")
+        elif status_code == "EXPIRED":
+            raise RuntimeError(f"Media container expired: {status_data}")
+
+        time.sleep(interval)
+
+    raise TimeoutError(f"Media container {creation_id} processing timed out after {timeout} seconds.")
+
+
 def publish_to_instagram(image_url: str, caption: str) -> str:
     """
-    Two-step Instagram publish:
-      Step 1 → Create a media container (returns creation_id)
-      Step 2 → Publish the container (returns ig_media_id)
+    Three-step Instagram publish:
+      Step 1   → Create a media container (returns creation_id)
+      Step 1.5 → Poll until container status is FINISHED
+      Step 2   → Publish the container (returns ig_media_id)
     Returns the final Instagram media ID.
     """
     print("  Step 1: Creating Instagram media container...")
@@ -430,17 +474,29 @@ def publish_to_instagram(image_url: str, caption: str) -> str:
     creation_id = container["id"]
     print(f"    Container ID: {creation_id}")
 
+    # Wait for Instagram to asynchronously download and process the Cloudinary image
+    wait_for_media_container(creation_id, timeout=90, interval=5)
+
     print("  Step 2: Publishing media container...")
-    publish  = _ig_post(
-        f"/{IG_ACCOUNT_ID}/media_publish",
-        {
-            "creation_id":   creation_id,
-            "access_token":  IG_ACCESS_TOKEN,
-        },
-    )
-    media_id = publish["id"]
-    print(f"    Published! Instagram Media ID: {media_id}")
-    return media_id
+    max_publish_retries = 3
+    for attempt in range(1, max_publish_retries + 1):
+        try:
+            publish = _ig_post(
+                f"/{IG_ACCOUNT_ID}/media_publish",
+                {
+                    "creation_id":   creation_id,
+                    "access_token":  IG_ACCESS_TOKEN,
+                },
+            )
+            media_id = publish["id"]
+            print(f"    Published! Instagram Media ID: {media_id}")
+            return media_id
+        except RuntimeError as e:
+            if "2207027" in str(e) and attempt < max_publish_retries:
+                print(f"    Media container still propagating (attempt {attempt}/{max_publish_retries}), retrying in 5s...")
+                time.sleep(5)
+            else:
+                raise
 
 
 # ─────────────────────────────────────────

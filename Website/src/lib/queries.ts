@@ -66,6 +66,10 @@ import type {
   AccuracyTimeSeries,
   ComparisonBundle,
   ComparisonSeries,
+  HealthScore,
+  PeerComparisonRow,
+  TopMoversData,
+  DailySentimentRow,
 } from "./types";
 
 const STOP_WORDS = new Set(["limited", "ltd", "inc", "corporation", "corp", "co", "company", "plc", "the"]);
@@ -241,10 +245,22 @@ export async function getCompanyInfo(ticker: string): Promise<CompanyInfo | null
     trailingpe: string | null;
     profitmargins: string | null;
     change52week: string | null;
+    totalrevenue: string | null;
+    grossmargins: string | null;
+    operatingmargins: string | null;
+    totalcash: string | null;
+    totaldebt: string | null;
+    fulltimeemployees: string | null;
+    sharesoutstanding: string | null;
+    floatshares: string | null;
   }>(
     `SELECT "Ticker" as ticker, "longName" as longname, sector, industry,
             "marketCap" as marketcap, "trailingPE" as trailingpe,
-            "profitMargins" as profitmargins, "52WeekChange" as change52week
+            "profitMargins" as profitmargins, "52WeekChange" as change52week,
+            "totalRevenue" as totalrevenue, "grossMargins" as grossmargins,
+            "operatingMargins" as operatingmargins, "totalCash" as totalcash,
+            "totalDebt" as totaldebt, "fullTimeEmployees" as fulltimeemployees,
+            "sharesOutstanding" as sharesoutstanding, "floatShares" as floatshares
      FROM company_info WHERE "Ticker" = $1`,
     [ticker]
   );
@@ -259,7 +275,135 @@ export async function getCompanyInfo(ticker: string): Promise<CompanyInfo | null
     trailingPE: row.trailingpe ? parseFloat(row.trailingpe) : null,
     profitMargins: row.profitmargins ? parseFloat(row.profitmargins) : null,
     change52Week: row.change52week ? parseFloat(row.change52week) : null,
+    totalRevenue: row.totalrevenue ? parseFloat(row.totalrevenue) : null,
+    grossMargins: row.grossmargins ? parseFloat(row.grossmargins) : null,
+    operatingMargins: row.operatingmargins ? parseFloat(row.operatingmargins) : null,
+    totalCash: row.totalcash ? parseFloat(row.totalcash) : null,
+    totalDebt: row.totaldebt ? parseFloat(row.totaldebt) : null,
+    fullTimeEmployees: row.fulltimeemployees ? parseInt(row.fulltimeemployees, 10) : null,
+    sharesOutstanding: row.sharesoutstanding ? parseFloat(row.sharesoutstanding) : null,
+    floatShares: row.floatshares ? parseFloat(row.floatshares) : null,
   };
+}
+
+/**
+ * Compute a financial health score (0–100) from company fundamentals.
+ * Aggregates margin quality, leverage, momentum, and valuation sub-scores.
+ */
+export function computeHealthScore(info: CompanyInfo, sectorAvgPE?: number): HealthScore {
+  // --- Margin Quality (0–100): weighted average of profit, operating, gross margins ---
+  const pm = info.profitMargins ?? 0;
+  const om = info.operatingMargins ?? 0;
+  const gm = info.grossMargins ?? 0;
+  // Benchmark: 15% profit margin = ~70 score, 25%+ = ~90+
+  const marginScore = Math.min(100, Math.max(0,
+    (pm * 200 * 0.5) + (om * 200 * 0.3) + (gm * 100 * 0.2)
+  ));
+
+  // --- Leverage (0–100): cash vs debt ratio ---
+  const cash = info.totalCash ?? 0;
+  const debt = info.totalDebt ?? 1; // avoid division by 0
+  const debtToCash = debt > 0 ? cash / debt : 10; // >1 is good
+  // >2.0 = 90+, 1.0 = 70, 0.5 = 40, 0.1 = 10
+  const leverageScore = Math.min(100, Math.max(0,
+    debtToCash >= 2 ? 90 + Math.min(10, (debtToCash - 2) * 5) :
+    debtToCash >= 1 ? 60 + debtToCash * 30 :
+    debtToCash >= 0.3 ? debtToCash * 130 :
+    debtToCash * 50
+  ));
+
+  // --- Momentum (0–100): 52-week change ---
+  const wc = info.change52Week ?? 0;
+  // +30% = ~80, 0% = 50, -30% = ~20
+  const momentumScore = Math.min(100, Math.max(0, 50 + wc * 100));
+
+  // --- Valuation (0–100): trailing PE relative to sector avg ---
+  const pe = info.trailingPE ?? 0;
+  const avgPE = sectorAvgPE ?? 25;
+  let valuationScore = 50; // neutral default
+  if (pe > 0 && pe < 100) {
+    const peRatio = pe / avgPE; // <1 = undervalued, >1 = overvalued
+    // 0.5x sector = 85, 1x = 60, 2x = 25
+    valuationScore = Math.min(100, Math.max(0, 100 - peRatio * 40));
+  }
+
+  // --- Overall (weighted) ---
+  const overall = Math.round(
+    marginScore * 0.35 + leverageScore * 0.20 + momentumScore * 0.25 + valuationScore * 0.20
+  );
+
+  // Grade
+  const grade = overall >= 85 ? "A+" :
+    overall >= 75 ? "A" :
+    overall >= 65 ? "B+" :
+    overall >= 55 ? "B" :
+    overall >= 45 ? "C+" :
+    overall >= 35 ? "C" :
+    overall >= 25 ? "D" : "F";
+
+  return {
+    overall,
+    grade,
+    marginQuality: Math.round(marginScore),
+    leverage: Math.round(leverageScore),
+    momentum: Math.round(momentumScore),
+    valuation: Math.round(valuationScore),
+  };
+}
+
+/**
+ * Get peer companies in the same sector for comparison.
+ */
+export async function getPeerComparison(ticker: string): Promise<PeerComparisonRow[]> {
+  // First get the sector of the current ticker
+  const sectorRows = await query<{ sector: string | null }>(
+    `SELECT sector FROM company_info WHERE "Ticker" = $1`, [ticker]
+  );
+  const sector = sectorRows[0]?.sector;
+  if (!sector) return [];
+
+  const rows = await query<{
+    ticker: string;
+    longname: string | null;
+    industry: string | null;
+    marketcap: string | null;
+    totalrevenue: string | null;
+    profitmargins: string | null;
+    grossmargins: string | null;
+    operatingmargins: string | null;
+    trailingpe: string | null;
+    change52week: string | null;
+    totalcash: string | null;
+    totaldebt: string | null;
+  }>(
+    `SELECT "Ticker" as ticker, "longName" as longname, industry,
+            "marketCap" as marketcap, "totalRevenue" as totalrevenue,
+            "profitMargins" as profitmargins, "grossMargins" as grossmargins,
+            "operatingMargins" as operatingmargins, "trailingPE" as trailingpe,
+            "52WeekChange" as change52week, "totalCash" as totalcash,
+            "totalDebt" as totaldebt
+     FROM company_info
+     WHERE sector = $1
+     ORDER BY "marketCap" DESC NULLS LAST
+     LIMIT 12`,
+    [sector]
+  );
+
+  return rows.map((r) => ({
+    ticker: r.ticker,
+    name: r.longname ?? r.ticker,
+    industry: r.industry ?? "Other",
+    marketCap: r.marketcap ? parseFloat(r.marketcap) : null,
+    totalRevenue: r.totalrevenue ? parseFloat(r.totalrevenue) : null,
+    profitMargins: r.profitmargins ? parseFloat(r.profitmargins) : null,
+    grossMargins: r.grossmargins ? parseFloat(r.grossmargins) : null,
+    operatingMargins: r.operatingmargins ? parseFloat(r.operatingmargins) : null,
+    trailingPE: r.trailingpe ? parseFloat(r.trailingpe) : null,
+    change52Week: r.change52week ? parseFloat(r.change52week) : null,
+    totalCash: r.totalcash ? parseFloat(r.totalcash) : null,
+    totalDebt: r.totaldebt ? parseFloat(r.totaldebt) : null,
+    isCurrent: r.ticker === ticker,
+  }));
 }
 
 export async function getCompanySentiment(ticker: string): Promise<CompanySentiment | null> {
@@ -353,6 +497,8 @@ export async function getTickerBundle(ticker: string, rangeDays: number): Promis
     analysis?.r2 ?? null
   );
 
+  const healthScore = companyInfo ? computeHealthScore(companyInfo) : null;
+
   return {
     ticker,
     name: companyInfo?.longName ?? ticker,
@@ -368,6 +514,7 @@ export async function getTickerBundle(ticker: string, rangeDays: number): Promis
     strategies,
     predictionHistory,
     analysis,
+    healthScore,
   };
 }
 
@@ -452,6 +599,90 @@ export async function getMarketOverview(): Promise<MarketOverviewRow[]> {
       confidence: Math.round(confidence),
     };
   });
+}
+
+export async function getTopMovers(): Promise<TopMoversData> {
+  // Query to get the last 2 days of stock data for daily gainers/losers, 
+  // plus volume spikes and predicted gainers/losers
+  
+  const rows = await query<{
+    ticker: string;
+    longname: string | null;
+    sector: string | null;
+    predicted_return: string | null;
+    latest_close: string | null;
+    prev_close: string | null;
+    latest_volume: string | null;
+    avg_volume: string | null;
+  }>(`
+    WITH latest_date AS (
+      SELECT MAX(("Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date) AS max_date
+      FROM final_analysis
+    ),
+    recent_prices AS (
+      SELECT 
+        "Ticker", 
+        "Close", 
+        "Volume", 
+        ROW_NUMBER() OVER (PARTITION BY "Ticker" ORDER BY "Date" DESC) as rn
+      FROM stock_data
+    ),
+    volume_stats AS (
+      SELECT
+        "Ticker",
+        AVG("Volume") as avg_vol
+      FROM stock_data
+      WHERE "Date" >= CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY "Ticker"
+    )
+    SELECT
+      ci."Ticker" as ticker,
+      ci."longName" as longname,
+      ci.sector,
+      fa."Predicted_Return_Pct" as predicted_return,
+      p1."Close" as latest_close,
+      p2."Close" as prev_close,
+      p1."Volume" as latest_volume,
+      v.avg_vol as avg_volume
+    FROM company_info ci
+    LEFT JOIN recent_prices p1 ON ci."Ticker" = p1."Ticker" AND p1.rn = 1
+    LEFT JOIN recent_prices p2 ON ci."Ticker" = p2."Ticker" AND p2.rn = 2
+    LEFT JOIN volume_stats v ON ci."Ticker" = v."Ticker"
+    LEFT JOIN final_analysis fa
+      ON ci."Ticker" = fa."Ticker"
+      AND (fa."Prediction_Date" AT TIME ZONE 'Asia/Kolkata')::date = (SELECT max_date FROM latest_date)
+  `);
+
+  const processed = rows.map(r => {
+    const latest = r.latest_close ? parseFloat(r.latest_close) : 0;
+    const prev = r.prev_close ? parseFloat(r.prev_close) : 1;
+    const dailyReturn = prev > 0 ? ((latest - prev) / prev) * 100 : 0;
+    const predicted = r.predicted_return ? parseFloat(r.predicted_return) : 0;
+    const latestVol = r.latest_volume ? parseFloat(r.latest_volume) : 0;
+    const avgVol = r.avg_volume ? parseFloat(r.avg_volume) : 1;
+    const volMultiple = avgVol > 0 ? latestVol / avgVol : 0;
+
+    return {
+      ticker: r.ticker,
+      name: r.longname ?? r.ticker,
+      sector: r.sector ?? "Other",
+      dailyReturn,
+      predictedReturn: predicted,
+      volMultiple
+    };
+  });
+
+  const dailySorted = [...processed].sort((a, b) => b.dailyReturn - a.dailyReturn);
+  const predictedSorted = [...processed].sort((a, b) => b.predictedReturn - a.predictedReturn);
+  const volSorted = [...processed].sort((a, b) => b.volMultiple - a.volMultiple);
+
+  return {
+    dailyGainers: dailySorted.slice(0, 5).map(r => ({ ...r, value: r.dailyReturn, type: "daily" })),
+    dailyLosers: dailySorted.slice(-5).reverse().map(r => ({ ...r, value: r.dailyReturn, type: "daily" })),
+    predictedGainers: predictedSorted.slice(0, 5).map(r => ({ ...r, value: r.predictedReturn, type: "predicted" })),
+    predictedLosers: predictedSorted.slice(-5).reverse().map(r => ({ ...r, value: r.predictedReturn, type: "predicted" })),
+    volumeSpikes: volSorted.slice(0, 5).map(r => ({ ...r, value: r.volMultiple, type: "volume" }))
+  };
 }
 
 /**
@@ -824,4 +1055,33 @@ export async function getComparisonBundle(tickers: string[], days: number): Prom
   }
 
   return { tickers: results };
+}
+
+export async function getSentimentCalendar(ticker: string, days: number = 365): Promise<DailySentimentRow[]> {
+  const t = ticker.toUpperCase();
+  
+  const rows = await query<{
+    date: string;
+    sentiment: string;
+    score: number;
+    article_count: number;
+  }>(
+    `SELECT 
+      ("Date" AT TIME ZONE 'Asia/Kolkata')::date as date, 
+      "Sentiment" as sentiment, 
+      "Score" as score, 
+      "Article_Count" as article_count 
+     FROM company_daily_sentiments 
+     WHERE "Ticker" = $1 
+       AND "Date" >= CURRENT_DATE - ($2 || ' days')::interval
+     ORDER BY "Date" ASC`,
+    [t, days.toString()]
+  );
+
+  return rows.map(r => ({
+    date: new Date(r.date).toISOString().split('T')[0],
+    sentiment: r.sentiment ?? "NEUTRAL",
+    score: r.score ? parseFloat(r.score.toString()) : 0,
+    articleCount: r.article_count ? parseInt(r.article_count.toString(), 10) : 0,
+  }));
 }

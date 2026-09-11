@@ -52,7 +52,11 @@ fetch_fields = [
     "symbol", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
     "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
     "totalCash", "totalDebt", "52WeekChange",
-    "sharesOutstanding", "floatShares", "trailingPE"
+    "sharesOutstanding", "floatShares", "trailingPE",
+    "dividendYield", "dividendRate", "exDividendDate", "payoutRatio", "fiveYearAvgDividendYield",
+    "forwardPE", "priceToBook", "priceToSalesTrailing12Months", "enterpriseValue", "enterpriseToRevenue", "enterpriseToEbitda", "pegRatio",
+    "targetHighPrice", "targetLowPrice", "targetMeanPrice", "targetMedianPrice", "recommendationKey", "recommendationMean", "numberOfAnalystOpinions",
+    "beta", "auditRisk", "boardRisk", "compensationRisk", "shareHolderRightsRisk", "overallRisk"
 ]
 
 data = []
@@ -70,6 +74,24 @@ df.rename(columns={'symbol': 'Ticker'}, inplace=True)
 df.replace([numpy.nan, numpy.inf, -numpy.inf], None, inplace=True)
 
 with engine.begin() as conn:
+    # Add new columns to existing table if they don't exist
+    for col, dtype in [
+        ("dividendYield", "DOUBLE PRECISION"), ("dividendRate", "DOUBLE PRECISION"), ("exDividendDate", "BIGINT"), 
+        ("payoutRatio", "DOUBLE PRECISION"), ("fiveYearAvgDividendYield", "DOUBLE PRECISION"),
+        ("forwardPE", "DOUBLE PRECISION"), ("priceToBook", "DOUBLE PRECISION"), ("priceToSalesTrailing12Months", "DOUBLE PRECISION"), 
+        ("enterpriseValue", "BIGINT"), ("enterpriseToRevenue", "DOUBLE PRECISION"), ("enterpriseToEbitda", "DOUBLE PRECISION"), 
+        ("pegRatio", "DOUBLE PRECISION"),
+        ("targetHighPrice", "DOUBLE PRECISION"), ("targetLowPrice", "DOUBLE PRECISION"), ("targetMeanPrice", "DOUBLE PRECISION"), 
+        ("targetMedianPrice", "DOUBLE PRECISION"), ("recommendationKey", "TEXT"), ("recommendationMean", "DOUBLE PRECISION"), 
+        ("numberOfAnalystOpinions", "BIGINT"),
+        ("beta", "DOUBLE PRECISION"), ("auditRisk", "BIGINT"), ("boardRisk", "BIGINT"), ("compensationRisk", "BIGINT"), 
+        ("shareHolderRightsRisk", "BIGINT"), ("overallRisk", "BIGINT")
+    ]:
+        try:
+            conn.execute(text(f'ALTER TABLE company_info ADD COLUMN IF NOT EXISTS "{col}" {dtype}'))
+        except Exception:
+            pass
+
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS {table_name.lower()} (
             "Ticker" TEXT PRIMARY KEY,
@@ -87,7 +109,32 @@ with engine.begin() as conn:
             "52WeekChange" DOUBLE PRECISION,
             "sharesOutstanding" BIGINT,
             "floatShares" BIGINT,
-            "trailingPE" DOUBLE PRECISION
+            "trailingPE" DOUBLE PRECISION,
+            "dividendYield" DOUBLE PRECISION,
+            "dividendRate" DOUBLE PRECISION,
+            "exDividendDate" BIGINT,
+            "payoutRatio" DOUBLE PRECISION,
+            "fiveYearAvgDividendYield" DOUBLE PRECISION,
+            "forwardPE" DOUBLE PRECISION,
+            "priceToBook" DOUBLE PRECISION,
+            "priceToSalesTrailing12Months" DOUBLE PRECISION,
+            "enterpriseValue" BIGINT,
+            "enterpriseToRevenue" DOUBLE PRECISION,
+            "enterpriseToEbitda" DOUBLE PRECISION,
+            "pegRatio" DOUBLE PRECISION,
+            "targetHighPrice" DOUBLE PRECISION,
+            "targetLowPrice" DOUBLE PRECISION,
+            "targetMeanPrice" DOUBLE PRECISION,
+            "targetMedianPrice" DOUBLE PRECISION,
+            "recommendationKey" TEXT,
+            "recommendationMean" DOUBLE PRECISION,
+            "numberOfAnalystOpinions" BIGINT,
+            "beta" DOUBLE PRECISION,
+            "auditRisk" BIGINT,
+            "boardRisk" BIGINT,
+            "compensationRisk" BIGINT,
+            "shareHolderRightsRisk" BIGINT,
+            "overallRisk" BIGINT
         )
     """))
 
@@ -97,12 +144,20 @@ INSERT INTO company_info (
     "Ticker", "longName", "sector", "industry", "fullTimeEmployees", "marketCap",
     "totalRevenue", "grossMargins", "operatingMargins", "profitMargins",
     "totalCash", "totalDebt", "52WeekChange",
-    "sharesOutstanding", "floatShares", "trailingPE"
+    "sharesOutstanding", "floatShares", "trailingPE",
+    "dividendYield", "dividendRate", "exDividendDate", "payoutRatio", "fiveYearAvgDividendYield",
+    "forwardPE", "priceToBook", "priceToSalesTrailing12Months", "enterpriseValue", "enterpriseToRevenue", "enterpriseToEbitda", "pegRatio",
+    "targetHighPrice", "targetLowPrice", "targetMeanPrice", "targetMedianPrice", "recommendationKey", "recommendationMean", "numberOfAnalystOpinions",
+    "beta", "auditRisk", "boardRisk", "compensationRisk", "shareHolderRightsRisk", "overallRisk"
 ) VALUES (
     :ticker, :long_name, :sector, :industry, :full_time_employees, :market_cap,
     :total_revenue, :gross_margins, :operating_margins, :profit_margins,
     :total_cash, :total_debt, :week52_change,
-    :shares_outstanding, :float_shares, :trailing_pe
+    :shares_outstanding, :float_shares, :trailing_pe,
+    :dividendYield, :dividendRate, :exDividendDate, :payoutRatio, :fiveYearAvgDividendYield,
+    :forwardPE, :priceToBook, :priceToSalesTrailing12Months, :enterpriseValue, :enterpriseToRevenue, :enterpriseToEbitda, :pegRatio,
+    :targetHighPrice, :targetLowPrice, :targetMeanPrice, :targetMedianPrice, :recommendationKey, :recommendationMean, :numberOfAnalystOpinions,
+    :beta, :auditRisk, :boardRisk, :compensationRisk, :shareHolderRightsRisk, :overallRisk
 )
 ON CONFLICT ("Ticker") DO UPDATE SET
     "longName" = EXCLUDED."longName",
@@ -119,7 +174,32 @@ ON CONFLICT ("Ticker") DO UPDATE SET
     "52WeekChange" = EXCLUDED."52WeekChange",
     "sharesOutstanding" = EXCLUDED."sharesOutstanding",
     "floatShares" = EXCLUDED."floatShares",
-    "trailingPE" = EXCLUDED."trailingPE"
+    "trailingPE" = EXCLUDED."trailingPE",
+    "dividendYield" = EXCLUDED."dividendYield",
+    "dividendRate" = EXCLUDED."dividendRate",
+    "exDividendDate" = EXCLUDED."exDividendDate",
+    "payoutRatio" = EXCLUDED."payoutRatio",
+    "fiveYearAvgDividendYield" = EXCLUDED."fiveYearAvgDividendYield",
+    "forwardPE" = EXCLUDED."forwardPE",
+    "priceToBook" = EXCLUDED."priceToBook",
+    "priceToSalesTrailing12Months" = EXCLUDED."priceToSalesTrailing12Months",
+    "enterpriseValue" = EXCLUDED."enterpriseValue",
+    "enterpriseToRevenue" = EXCLUDED."enterpriseToRevenue",
+    "enterpriseToEbitda" = EXCLUDED."enterpriseToEbitda",
+    "pegRatio" = EXCLUDED."pegRatio",
+    "targetHighPrice" = EXCLUDED."targetHighPrice",
+    "targetLowPrice" = EXCLUDED."targetLowPrice",
+    "targetMeanPrice" = EXCLUDED."targetMeanPrice",
+    "targetMedianPrice" = EXCLUDED."targetMedianPrice",
+    "recommendationKey" = EXCLUDED."recommendationKey",
+    "recommendationMean" = EXCLUDED."recommendationMean",
+    "numberOfAnalystOpinions" = EXCLUDED."numberOfAnalystOpinions",
+    "beta" = EXCLUDED."beta",
+    "auditRisk" = EXCLUDED."auditRisk",
+    "boardRisk" = EXCLUDED."boardRisk",
+    "compensationRisk" = EXCLUDED."compensationRisk",
+    "shareHolderRightsRisk" = EXCLUDED."shareHolderRightsRisk",
+    "overallRisk" = EXCLUDED."overallRisk"
 """)
 
 with engine.begin() as conn:
@@ -147,6 +227,31 @@ with engine.begin() as conn:
             "shares_outstanding": int(row['sharesOutstanding']) if pd.notna(row['sharesOutstanding']) else None,
             "float_shares": int(row['floatShares']) if pd.notna(row['floatShares']) else None,
             "trailing_pe": float(row['trailingPE']) if pd.notna(row['trailingPE']) else None,
+            "dividendYield": float(row['dividendYield']) if pd.notna(row['dividendYield']) else None,
+            "dividendRate": float(row['dividendRate']) if pd.notna(row['dividendRate']) else None,
+            "exDividendDate": int(row['exDividendDate']) if pd.notna(row['exDividendDate']) else None,
+            "payoutRatio": float(row['payoutRatio']) if pd.notna(row['payoutRatio']) else None,
+            "fiveYearAvgDividendYield": float(row['fiveYearAvgDividendYield']) if pd.notna(row['fiveYearAvgDividendYield']) else None,
+            "forwardPE": float(row['forwardPE']) if pd.notna(row['forwardPE']) else None,
+            "priceToBook": float(row['priceToBook']) if pd.notna(row['priceToBook']) else None,
+            "priceToSalesTrailing12Months": float(row['priceToSalesTrailing12Months']) if pd.notna(row['priceToSalesTrailing12Months']) else None,
+            "enterpriseValue": int(row['enterpriseValue']) if pd.notna(row['enterpriseValue']) else None,
+            "enterpriseToRevenue": float(row['enterpriseToRevenue']) if pd.notna(row['enterpriseToRevenue']) else None,
+            "enterpriseToEbitda": float(row['enterpriseToEbitda']) if pd.notna(row['enterpriseToEbitda']) else None,
+            "pegRatio": float(row['pegRatio']) if pd.notna(row['pegRatio']) else None,
+            "targetHighPrice": float(row['targetHighPrice']) if pd.notna(row['targetHighPrice']) else None,
+            "targetLowPrice": float(row['targetLowPrice']) if pd.notna(row['targetLowPrice']) else None,
+            "targetMeanPrice": float(row['targetMeanPrice']) if pd.notna(row['targetMeanPrice']) else None,
+            "targetMedianPrice": float(row['targetMedianPrice']) if pd.notna(row['targetMedianPrice']) else None,
+            "recommendationKey": row['recommendationKey'] if pd.notna(row['recommendationKey']) else None,
+            "recommendationMean": float(row['recommendationMean']) if pd.notna(row['recommendationMean']) else None,
+            "numberOfAnalystOpinions": int(row['numberOfAnalystOpinions']) if pd.notna(row['numberOfAnalystOpinions']) else None,
+            "beta": float(row['beta']) if pd.notna(row['beta']) else None,
+            "auditRisk": int(row['auditRisk']) if pd.notna(row['auditRisk']) else None,
+            "boardRisk": int(row['boardRisk']) if pd.notna(row['boardRisk']) else None,
+            "compensationRisk": int(row['compensationRisk']) if pd.notna(row['compensationRisk']) else None,
+            "shareHolderRightsRisk": int(row['shareHolderRightsRisk']) if pd.notna(row['shareHolderRightsRisk']) else None,
+            "overallRisk": int(row['overallRisk']) if pd.notna(row['overallRisk']) else None,
         })
 
 print("Data inserted into Supabase Postgres successfully.")

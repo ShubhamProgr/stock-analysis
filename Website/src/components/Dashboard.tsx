@@ -18,6 +18,9 @@ import AccuracyView from "./AccuracyView";
 import CompareView from "./CompareView";
 import StrategyView from "./StrategyView";
 import ThemeToggle from "./ThemeToggle";
+import CompanyFundamentals from "./CompanyFundamentals";
+import PeerComparison from "./PeerComparison";
+import SentimentCalendar from "./SentimentCalendar";
 import { dayLabel, fmtMoney, fmtPct } from "@/lib/format";
 
 const RANGES = [
@@ -327,11 +330,22 @@ export default function Dashboard({
 
               <div>
                 <CompanySentimentCard sentiment={bundle.companySentiment} />
+                <SentimentCalendar ticker={bundle.ticker} />
                 <NewsFeed news={bundle.news} />
               </div>
             </section>
 
             <ModelInsights bundle={bundle} />
+
+            <CompanyFundamentals
+              info={bundle.companyInfo}
+              healthScore={bundle.healthScore}
+            />
+
+            <PeerComparison
+              ticker={bundle.ticker}
+              onSelectTicker={handleSelectTicker}
+            />
 
             <PredictionVsActualChart
               predictionHistory={bundle.predictionHistory}
