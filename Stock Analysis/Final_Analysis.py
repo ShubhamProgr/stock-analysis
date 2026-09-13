@@ -69,9 +69,9 @@ ticker_to_company = {
     'MUTHOOTFIN.NS': 'muthoot finance', 'PAYTM.NS': 'paytm', 'PIIND.NS': 'pi industries',
     'PIDILITIND.NS': 'pidilite', 'SBICARD.NS': 'sbi card', 'SRF.NS': 'srf',
     'MOTHERSON.NS': 'motherson sumi', 'SIEMENS.NS': 'siemens', 'TATAPOWER.NS': 'tata power',
-    'TORNTPHARM.NS': 'torrent pharma', 'MCDOWELL-N.NS': 'mcdowell', 'VEDL.NS': 'vedanta',
-    'ZOMATO.NS': 'zomato', 'PETRONET.NS': 'petronet lgm', 'PGHH.NS': 'procter gamble',
-    'POLYCAB.NS': 'polycab', 'ICICISENSX.NS': 'icici securities', 'HAVELLS.NS': 'havells',
+    'TORNTPHARM.NS': 'torrent pharma', 'MCDOWELL-N.NS': 'united spirits', 'VEDL.NS': 'vedanta',
+    'ZOMATO.NS': 'zomato', 'PETRONET.NS': 'petronet', 'PGHH.NS': 'pg hygiene',
+    'POLYCAB.NS': 'polycab', 'ICICISENSX.NS': 'icici sensex', 'HAVELLS.NS': 'havells',
     'CONCOR.NS': 'concor', 'IRCTC.NS': 'irctc', 'TRENT.NS': 'trent', 'TVSMOTOR.NS': 'tvs motor',
     'JUBLFOOD.NS': 'jubilant foodworks'
 }

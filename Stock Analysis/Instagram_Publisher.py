@@ -372,7 +372,7 @@ def generate_image(
               hashtags, font=f_hashtag, fill=(55, 75, 110))
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    img.save(buf, format="JPEG", quality=95, optimize=True)
     return buf.getvalue()
 
 
@@ -381,7 +381,7 @@ def generate_image(
 # ─────────────────────────────────────────
 def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
     """
-    Upload PNG bytes to Cloudinary under stock_analytics/.
+    Upload JPEG bytes to Cloudinary under stock_analytics/.
     Each day's image is kept permanently for a full post history.
     Returns (secure_url, public_id_with_folder).
     """
@@ -391,12 +391,30 @@ def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
         folder="stock_analytics",
         resource_type="image",
         format="jpg",          # Instagram requires JPEG
+        access_mode="public",
         transformation=[
             {"width": 1080, "height": 1080, "crop": "fill"},
             {"quality": "auto:best"},
         ],
     )
-    return result["secure_url"], result["public_id"]
+    secure_url = result["secure_url"]
+
+    # Warm up Cloudinary CDN edge so Meta's crawler doesn't hit a 404 / cache miss
+    print("  Step 3.5: Warming up Cloudinary CDN URL...")
+    for attempt in range(1, 6):
+        try:
+            r = requests.get(secure_url, timeout=10)
+            if r.status_code == 200 and r.headers.get("Content-Type", "").startswith("image/"):
+                print(f"    CDN cache ready ({r.headers.get('Content-Type')}, {len(r.content)} bytes)")
+                break
+        except Exception as e:
+            print(f"    CDN check {attempt} failed: {e}")
+        time.sleep(2)
+
+    # Brief delay to allow edge replication across Meta's geographic crawl nodes
+    time.sleep(3)
+
+    return secure_url, result["public_id"]
 
 
 # ─────────────────────────────────────────
@@ -463,14 +481,28 @@ def publish_to_instagram(image_url: str, caption: str) -> str:
     Returns the final Instagram media ID.
     """
     print("  Step 1: Creating Instagram media container...")
-    container = _ig_post(
-        f"/{IG_ACCOUNT_ID}/media",
-        {
-            "image_url":  image_url,
-            "caption":    caption,
-            "access_token": IG_ACCESS_TOKEN,
-        },
-    )
+    max_container_retries = 4
+    container = None
+    for attempt in range(1, max_container_retries + 1):
+        try:
+            container = _ig_post(
+                f"/{IG_ACCOUNT_ID}/media",
+                {
+                    "image_url":    image_url,
+                    "caption":      caption,
+                    "access_token": IG_ACCESS_TOKEN,
+                },
+            )
+            break
+        except RuntimeError as e:
+            # 2207052 / 9004 = Media download failed / Meta could not fetch URL yet
+            if ("2207052" in str(e) or "9004" in str(e)) and attempt < max_container_retries:
+                wait_secs = attempt * 5
+                print(f"    CDN URL not reached by Meta crawler yet (attempt {attempt}/{max_container_retries}), retrying in {wait_secs}s...")
+                time.sleep(wait_secs)
+            else:
+                raise
+
     creation_id = container["id"]
     print(f"    Container ID: {creation_id}")
 

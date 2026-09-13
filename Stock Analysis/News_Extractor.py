@@ -114,7 +114,8 @@ company_aliases = {
     "irctc": ["irctc", "indian railway catering"],
     "trent": ["trent"],
     "tvs motor": ["tvs", "tvs motor"],
-    "jubilant food": ["jubilant food", "jubilant foodworks", "domino's", "dominos"]
+    "jubilant food": ["jubilant food", "jubilant foodworks", "domino's", "dominos"],
+    "icici sensex": ["icici sensex", "icicisensx", "icici securities"]
 }
 
 # Dedicated, high-precision search query terms to prevent starvation and false results
@@ -218,7 +219,8 @@ company_search_terms = {
     "irctc": 'IRCTC stock OR shares',
     "trent": 'Trent Limited OR "Trent" stock OR shares',
     "tvs motor": 'TVS Motor stock OR shares',
-    "jubilant food": 'Jubilant FoodWorks stock OR shares'
+    "jubilant food": 'Jubilant FoodWorks stock OR shares',
+    "icici sensex": 'ICICI Securities OR ICICISENSX stock OR shares'
 }
 
 # Contextual guardrails for short or ambiguous symbols to reject false positives

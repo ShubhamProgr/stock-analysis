@@ -129,7 +129,8 @@ COMPANY_TICKERS = {
     "tvs motor": "TVSMOTOR.NS",
     "jubilant food": "JUBLFOOD.NS",
     "hal": "HAL.NS",
-    "dlf": "DLF.NS"
+    "dlf": "DLF.NS",
+    "icici sensex": "ICICISENSX.NS"
 }
 
 # ==================== Helper Functions ====================
