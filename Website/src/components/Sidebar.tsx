@@ -3,6 +3,7 @@
 import type { WatchlistRow, DashboardView } from "@/lib/types";
 import { fmtMoney, fmtPct, sparklinePath } from "@/lib/format";
 import ThemeToggle from "./ThemeToggle";
+import Link from "next/link";
 
 type Props = {
   watchlist: WatchlistRow[];
@@ -113,7 +114,7 @@ function fmtWatchPrice(v: number): string {
 export default function Sidebar({ watchlist, currentTicker, onSelectTicker, activeNav, onSelectNav, activeView, onSelectView }: Props) {
   return (
     <aside className="rail">
-      <div className="brand">
+      <Link href="/" className="brand" style={{ textDecoration: "none", color: "inherit" }} title="Return to Landing Page">
         <div className="brandMark">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M2 12L6 7L9 9.5L14 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -123,7 +124,7 @@ export default function Sidebar({ watchlist, currentTicker, onSelectTicker, acti
           <div className="brandName">Stock Analytics</div>
           <div className="brandSub">By Shubham</div>
         </div>
-      </div>
+      </Link>
 
       <div className="railThemeToggle">
         <ThemeToggle variant="segmented" />
