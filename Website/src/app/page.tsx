@@ -30,32 +30,22 @@ const ICON_SVG_CONTENT: Record<number, string> = {
   5: '<path d="M3 20L8 13L13 16L19 7L23 11" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 20L8 16L13 19L19 12L23 15" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.4"/>',
 };
 
-const BG_STOCK_PATH = "M0,660 C60,640 90,630 130,625 C170,620 200,650 240,645 C300,635 330,565 380,555 C430,545 460,580 500,570 C560,555 590,465 650,450 C700,440 730,480 770,470 C830,455 860,360 920,345 C970,335 1000,370 1040,360 C1100,340 1140,240 1200,225 C1250,215 1280,240 1320,220 C1380,185 1410,130 1440,95";
-const BG_AREA_PATH = BG_STOCK_PATH + " L1440,780 L0,780 Z";
-const BG_EMA_PATH = "M0,710 C200,680 380,620 580,550 C780,480 980,380 1180,280 C1320,210 1400,160 1440,140";
-
-const BG_CANDLESTICKS = [
-  { x: 70, open: 645, close: 635, high: 625, low: 652, up: true },
-  { x: 140, open: 632, close: 638, high: 628, low: 646, up: false },
-  { x: 210, open: 636, close: 610, high: 602, low: 642, up: true },
-  { x: 280, open: 615, close: 590, high: 580, low: 622, up: true },
-  { x: 350, open: 588, close: 598, high: 582, low: 605, up: false },
-  { x: 420, open: 592, close: 560, high: 550, low: 598, up: true },
-  { x: 490, open: 564, close: 574, high: 558, low: 582, up: false },
-  { x: 560, open: 568, close: 520, high: 510, low: 574, up: true },
-  { x: 630, open: 524, close: 470, high: 460, low: 530, up: true },
-  { x: 700, open: 472, close: 482, high: 465, low: 490, up: false },
-  { x: 770, open: 478, close: 430, high: 420, low: 485, up: true },
-  { x: 840, open: 434, close: 380, high: 370, low: 440, up: true },
-  { x: 910, open: 382, close: 392, high: 375, low: 400, up: false },
-  { x: 980, open: 388, close: 340, high: 330, low: 395, up: true },
-  { x: 1050, open: 344, close: 355, high: 338, low: 362, up: false },
-  { x: 1120, open: 348, close: 280, high: 270, low: 355, up: true },
-  { x: 1190, open: 284, close: 235, high: 225, low: 290, up: true },
-  { x: 1260, open: 238, close: 248, high: 230, low: 255, up: false },
-  { x: 1330, open: 242, close: 180, high: 170, low: 250, up: true },
-  { x: 1400, open: 184, close: 110, high: 100, low: 190, up: true },
+const BG_BAR_BASE = 620;
+const BG_BAR_W = 40;
+const BG_BARS: { x: number; h: number }[] = [
+  { x: 30, h: 50 }, { x: 95, h: 70 }, { x: 160, h: 58 }, { x: 225, h: 92 },
+  { x: 290, h: 120 }, { x: 355, h: 106 }, { x: 420, h: 138 }, { x: 485, h: 164 },
+  { x: 550, h: 148 }, { x: 615, h: 178 }, { x: 680, h: 202 }, { x: 745, h: 186 },
+  { x: 810, h: 216 }, { x: 875, h: 240 }, { x: 940, h: 222 }, { x: 1005, h: 252 },
+  { x: 1070, h: 274 }, { x: 1135, h: 258 }, { x: 1200, h: 288 }, { x: 1265, h: 312 },
+  { x: 1330, h: 296 }, { x: 1390, h: 320 },
 ];
+const BG_LINE_PATH = (() => {
+  let d = "";
+  BG_BARS.forEach((b, i) => { d += `${i === 0 ? "M" : "L"}${b.x},${BG_BAR_BASE - b.h}`; });
+  return d;
+})();
+const BG_LINE_AREA_PATH = BG_LINE_PATH + " L1430,780 L20,780 Z";
 
 export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,10 +157,10 @@ export default function LandingPage() {
                 <stop offset="45%" stopColor="#7da0de" stopOpacity="0.05"/>
                 <stop offset="90%" stopColor="#0d0f13" stopOpacity="0"/>
               </linearGradient>
-              <linearGradient id="bg-ema-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="rgba(125,160,222,0.08)"/>
-                <stop offset="50%" stopColor="rgba(125,160,222,0.28)"/>
-                <stop offset="100%" stopColor="rgba(56,189,248,0.5)"/>
+              <linearGradient id="bg-bar-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#3b5ba5"/>
+                <stop offset="50%" stopColor="#7da0de"/>
+                <stop offset="100%" stopColor="#35c15e"/>
               </linearGradient>
               <filter id="stock-glow" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="7" result="blur"/>
@@ -200,31 +190,28 @@ export default function LandingPage() {
               <line key={i} x1={vx} y1="60" x2={vx} y2="740" stroke="rgba(242,241,236,0.03)" strokeWidth="1" strokeDasharray="4 8"/>
             ))}
 
-            {/* Faint Background Candlesticks Rising */}
-            {BG_CANDLESTICKS.map((c,i)=>(
-              <g key={i} style={{animation:`stock-candle-rise 0.8s ease-out ${0.1+i*0.04}s both`,transformOrigin:`${c.x}px ${c.low}px`}}>
-                <line x1={c.x} y1={c.high} x2={c.x} y2={c.low} stroke={c.up?"rgba(53,193,94,0.45)":"rgba(232,99,95,0.35)"} strokeWidth="1.5"/>
-                <rect x={c.x-5} y={Math.min(c.open,c.close)} width="10" height={Math.max(5,Math.abs(c.close-c.open))} rx="1.5" fill={c.up?"rgba(53,193,94,0.16)":"rgba(232,99,95,0.12)"} stroke={c.up?"rgba(53,193,94,0.45)":"rgba(232,99,95,0.35)"} strokeWidth="1"/>
+            {/* Rising Bar Chart */}
+            {BG_BARS.map((b,i)=>(
+              <g key={i} style={{transformOrigin:`${b.x+BG_BAR_W/2}px ${BG_BAR_BASE}px`,animation:`stock-bar-rise 0.6s cubic-bezier(.22,.68,0,1.2) ${0.08+i*0.05}s both`}}>
+                <rect x={b.x} y={BG_BAR_BASE-b.h} width={BG_BAR_W} height={b.h} rx="4" fill="url(#bg-bar-grad)"/>
+                <line x1={b.x} y1={BG_BAR_BASE-b.h} x2={b.x+BG_BAR_W} y2={BG_BAR_BASE-b.h} stroke="rgba(255,255,255,0.4)" strokeWidth="1" style={{animation:`stock-bar-rise 0.6s cubic-bezier(.22,.68,0,1.2) ${0.08+i*0.05}s both`}}/>
               </g>
             ))}
 
-            {/* Faded Secondary EMA Trendline */}
-            <path d={BG_EMA_PATH} fill="none" stroke="url(#bg-ema-grad)" strokeWidth="1.8" strokeDasharray="6 6" opacity="0.6"/>
-
-            {/* Area Fill Under Main Rising Stock Curve */}
-            <path d={BG_AREA_PATH} fill="url(#bg-stock-area-grad)"/>
+            {/* Area Fill Under Rising Line */}
+            <path d={BG_LINE_AREA_PATH} fill="url(#bg-stock-area-grad)"/>
 
             {/* Glowing Neon Line */}
-            <path d={BG_STOCK_PATH} fill="none" stroke="rgba(125,160,222,0.35)" strokeWidth="12" filter="url(#stock-glow)"/>
+            <path d={BG_LINE_PATH} fill="none" stroke="rgba(125,160,222,0.35)" strokeWidth="10" filter="url(#stock-glow)"/>
 
-            {/* Main Stock Curve Line (animated drawing) */}
-            <path d={BG_STOCK_PATH} fill="none" stroke="url(#bg-stock-line-grad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{strokeDasharray:2400,strokeDashoffset:2400,animation:"stock-draw 2.5s cubic-bezier(0.16,1,0.3,1) forwards"}}/>
+            {/* Main Rising Line tracing over bar tops (animated drawing) */}
+            <path d={BG_LINE_PATH} fill="none" stroke="url(#bg-stock-line-grad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{strokeDasharray:2200,strokeDashoffset:2200,animation:"stock-line-draw 1.8s cubic-bezier(0.16,1,0.3,1) 0.2s forwards"}}/>
 
             {/* Live Electric Flowing Pulse Dash */}
-            <path d={BG_STOCK_PATH} fill="none" stroke="rgba(242,241,236,0.85)" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="18 160" style={{animation:"stock-flow 3.2s linear infinite"}}/>
+            <path d={BG_LINE_PATH} fill="none" stroke="rgba(242,241,236,0.85)" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="18 160" style={{animation:"stock-flow 3.2s linear infinite"}}/>
 
             {/* Pulsing Radar Beacon at the Peak */}
-            <g transform="translate(1410, 105)">
+            <g transform="translate(1400, 300)">
               <circle cx="0" cy="0" r="14" fill="none" stroke="#7da0de" style={{animation:"stock-radar 2.2s cubic-bezier(0,0.2,0.8,1) infinite"}}/>
               <circle cx="0" cy="0" r="14" fill="none" stroke="#35c15e" style={{animation:"stock-radar 2.2s cubic-bezier(0,0.2,0.8,1) infinite 0.7s"}}/>
               <circle cx="0" cy="0" r="7" fill="#35c15e"/>
