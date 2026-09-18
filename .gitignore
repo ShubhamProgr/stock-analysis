@@ -11,3 +11,12 @@ build/
 .env*.local
 .vscode
 settings.json
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Instagram generator artifacts
+stock analysis/fonts/
+stock analysis/instagram_preview*.png

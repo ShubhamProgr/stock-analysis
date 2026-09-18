@@ -29,7 +29,7 @@ from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv, find_dotenv
 from sqlalchemy import create_engine, text
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 # ─────────────────────────────────────────
 # 0. CONFIGURATION
@@ -66,39 +66,99 @@ if not DATABASE_URL:
 PREVIEW_PATH = os.path.join(os.path.dirname(__file__), "instagram_preview.png")
 
 # ─────────────────────────────────────────
-# 1. DESIGN CONSTANTS
+# 1. DESIGN CONSTANTS & TYPOGRAPHY
 # ─────────────────────────────────────────
-IMG_SIZE        = 1080                # square canvas
-PADDING         = 48
-COL_WIDTH       = (IMG_SIZE - PADDING * 3) // 2   # two equal columns
+FONTS_DIR       = os.path.join(os.path.dirname(__file__), "fonts")
 
-# Colour palette
-BG_TOP          = (10,  14,  26)      # near-black navy
-BG_BOTTOM       = (18,  22,  42)      # slightly lighter navy
-GAINER_PRIMARY  = (0,  230, 118)      # electric green
-GAINER_DIM      = (0,  160,  80)
-LOSER_PRIMARY   = (255, 69,  88)      # vivid red
-LOSER_DIM       = (180,  40,  55)
-CARD_BG_GAINER  = (12,  38,  24)      # dark green tint
-CARD_BG_LOSER   = (42,  12,  18)      # dark red tint
-DIVIDER         = (40,  48,  72)
+# Canvas Dimensions — Instagram 4:5 Portrait Ratio (Optimal for Feed Visibility)
+IMG_W           = 1080
+IMG_H           = 1350
+PADDING_X       = 48
+GAP_COL         = 20
+COL_WIDTH       = (IMG_W - (PADDING_X * 2) - GAP_COL) // 2  # 482 px each
+
+# Refined Fintech Palette
+BG_DARK_TOP     = (7, 10, 19)
+BG_DARK_MID     = (10, 14, 27)
+BG_DARK_BOT     = (6, 8, 16)
+
+CARD_BG         = (15, 23, 42, 225)       # Translucent slate
+CARD_BORDER_GAINER = (22, 101, 52)        # Emerald border
+CARD_BORDER_LOSER  = (153, 27, 27)        # Rose border
+
+GREEN_PRIMARY   = (52, 211, 153)          # Emerald 400
+GREEN_BG        = (6, 78, 59, 140)        # Deep emerald pill
+GREEN_LIGHT     = (167, 243, 208)
+
+RED_PRIMARY     = (251, 113, 133)         # Rose 400
+RED_BG          = (136, 19, 55, 140)      # Deep rose pill
+RED_LIGHT       = (254, 205, 211)
+
 TEXT_WHITE      = (255, 255, 255)
-TEXT_MUTED      = (148, 163, 184)
-TEXT_GOLD       = (255, 200,  50)
-ACCENT_BLUE     = (99,  179, 237)
+TEXT_SUB        = (203, 213, 225)         # Slate 300
+TEXT_MUTED      = (148, 163, 184)         # Slate 400
+TEXT_DIM        = (100, 116, 139)         # Slate 500
+ACCENT_CYAN     = (56, 189, 248)          # Sky 400
+ACCENT_BLUE     = (96, 165, 250)          # Blue 400
+ACCENT_GOLD     = (250, 204, 21)          # Amber 400
 
-# Typography — fall back gracefully if font not found
-def _load_font(size: int, bold: bool = False):
-    """Try to load a nice system font, fall back to Pillow default."""
-    candidates_bold   = ["arialbd.ttf", "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"]
-    candidates_normal = ["arial.ttf",   "DejaVuSans.ttf",       "LiberationSans.ttf"]
-    candidates = candidates_bold if bold else candidates_normal
+_FONTS_CHECKED = False
+
+def _ensure_fonts() -> None:
+    """Download required Inter font files on-demand if missing."""
+    global _FONTS_CHECKED
+    if _FONTS_CHECKED:
+        return
+    _FONTS_CHECKED = True
+    os.makedirs(FONTS_DIR, exist_ok=True)
+    font_urls = {
+        "Inter-Bold.ttf": "https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-700-normal.ttf",
+        "Inter-SemiBold.ttf": "https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-600-normal.ttf",
+        "Inter-Regular.ttf": "https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.ttf",
+    }
+    for font_name, url in font_urls.items():
+        dest = os.path.join(FONTS_DIR, font_name)
+        if not os.path.exists(dest):
+            try:
+                r = requests.get(url, timeout=10)
+                if r.status_code == 200:
+                    with open(dest, "wb") as f:
+                        f.write(r.content)
+            except Exception:
+                pass
+
+
+def _load_font(size: int, weight: str = "regular") -> ImageFont.ImageFont:
+    """
+    Load bundled modern fonts (Inter / Plus Jakarta Sans) or fallback gracefully.
+    Downloads on-demand if missing on headless/cloud environments.
+    """
+    _ensure_fonts()
+    weight_map = {
+        "bold": ["Inter-Bold.ttf", "Inter-700.ttf", "PlusJakartaSans-600.ttf", "segoeuib.ttf", "arialbd.ttf"],
+        "semibold": ["Inter-SemiBold.ttf", "Inter-600.ttf", "seguisb.ttf", "segoeuib.ttf", "arialbd.ttf"],
+        "regular": ["Inter-Regular.ttf", "Inter-400.ttf", "PlusJakartaSans-400.ttf", "segoeui.ttf", "arial.ttf"],
+        "medium": ["Inter-SemiBold.ttf", "Inter-500.ttf", "PlusJakartaSans-500.ttf", "segoeui.ttf", "arial.ttf"],
+    }
+    candidates = weight_map.get(weight.lower(), weight_map["regular"])
     for name in candidates:
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
+        # 1. Check local fonts folder
+        p = os.path.join(FONTS_DIR, name)
+        if os.path.exists(p):
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                pass
+        # 2. Check Windows fonts directory
+        win_p = os.path.join(r"C:\Windows\Fonts", name)
+        if os.path.exists(win_p):
+            try:
+                return ImageFont.truetype(win_p, size)
+            except Exception:
+                pass
     return ImageFont.load_default()
+
+
 
 
 # ─────────────────────────────────────────
@@ -156,33 +216,21 @@ def fetch_predictions() -> tuple[list[dict], list[dict], date]:
 # ─────────────────────────────────────────
 # 3. IMAGE GENERATION
 # ─────────────────────────────────────────
-def _gradient_bg(draw: ImageDraw.ImageDraw):
-    """Draw a vertical linear gradient background."""
-    for y in range(IMG_SIZE):
-        t = y / IMG_SIZE
-        r = int(BG_TOP[0] + (BG_BOTTOM[0] - BG_TOP[0]) * t)
-        g = int(BG_TOP[1] + (BG_BOTTOM[1] - BG_TOP[1]) * t)
-        b = int(BG_TOP[2] + (BG_BOTTOM[2] - BG_TOP[2]) * t)
-        draw.line([(0, y), (IMG_SIZE, y)], fill=(r, g, b))
+def _draw_arrow(draw: ImageDraw.ImageDraw, x: int, y: int, size: int, color: tuple, upward: bool = True):
+    """Draw a crisp vector directional arrow."""
+    h = size
+    w = int(size * 1.15)
+    if upward:
+        points = [(x + w // 2, y), (x, y + h), (x + w, y + h)]
+    else:
+        points = [(x, y), (x + w, y), (x + w // 2, y + h)]
+    draw.polygon(points, fill=color)
 
 
-def _glow_line(draw: ImageDraw.ImageDraw, x0, y0, x1, y1, colour, width=1):
-    """Draw a subtle glowing horizontal/vertical separator line."""
-    r, g, b = colour
-    for offset, alpha_factor in [(-1, 0.3), (0, 1.0), (1, 0.3)]:
-        faded = (int(r * alpha_factor), int(g * alpha_factor), int(b * alpha_factor))
-        draw.line([(x0, y0 + offset), (x1, y1 + offset)], fill=faded, width=width)
-
-
-def _draw_card(draw: ImageDraw.ImageDraw, x, y, w, h, bg_color, border_color):
-    """Draw a rounded-corner-style card (approximated with rectangles)."""
-    radius = 12
-    draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, fill=bg_color, outline=border_color, width=1)
-
-
-def _short_name(company: str, max_len: int = 16) -> str:
-    """Truncate company name to fit card width."""
-    return company if len(company) <= max_len else company[:max_len - 1] + "…"
+def _draw_bookmark_icon(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, color: tuple):
+    """Draw a clean bookmark ribbon icon."""
+    pts = [(x, y), (x + w, y), (x + w, y + h), (x + w // 2, y + h - 5), (x, y + h)]
+    draw.polygon(pts, fill=color)
 
 
 def generate_image(
@@ -191,188 +239,284 @@ def generate_image(
     prediction_date: date,
 ) -> bytes:
     """
-    Render the Instagram post and return PNG bytes.
-    Layout (1080×1080):
-      ┌──────────────────────────────────┐
-      │           HEADER / BRAND         │  ~175 px
-      ├────────────────┬─────────────────┤
-      │  TOP 5 GAINERS │  TOP 5 LOSERS   │  ~790 px
-      │   (5 cards)    │   (5 cards)     │
-      ├────────────────┴─────────────────┤
-      │              FOOTER              │  ~115 px
-      └──────────────────────────────────┘
+    Render a high-conversion 1080x1350 (4:5 portrait) Instagram post and return JPEG bytes.
+    Layout:
+      ┌──────────────────────────────────────────────┐
+      │  HEADER: Brand, Horizon & Date Pills         │  ~250 px
+      ├──────────────────────┬───────────────────────┤
+      │  TOP 5 GAINERS       │  TOP 5 LOSERS         │  ~910 px
+      │  (5 Glass Cards)     │  (5 Glass Cards)      │
+      ├──────────────────────┴───────────────────────┤
+      │  FOOTER: Handle Pill, Save CTA & Disclaimer  │  ~190 px
+      └──────────────────────────────────────────────┘
     """
-    img  = Image.new("RGB", (IMG_SIZE, IMG_SIZE))
-    draw = ImageDraw.Draw(img)
+    # 1. Base Gradient Canvas
+    base = Image.new("RGBA", (IMG_W, IMG_H), BG_DARK_TOP)
+    draw = ImageDraw.Draw(base)
 
-    # ── Background ──
-    _gradient_bg(draw)
+    # Multi-stop vertical gradient for dark slate depth
+    for y in range(IMG_H):
+        if y < IMG_H // 2:
+            t = y / (IMG_H // 2)
+            c1, c2 = BG_DARK_TOP, BG_DARK_MID
+        else:
+            t = (y - IMG_H // 2) / (IMG_H // 2)
+            c1, c2 = BG_DARK_MID, BG_DARK_BOT
+        r = int(c1[0] + (c2[0] - c1[0]) * t)
+        g = int(c1[1] + (c2[1] - c1[1]) * t)
+        b = int(c1[2] + (c2[2] - c1[2]) * t)
+        draw.line([(0, y), (IMG_W, y)], fill=(r, g, b, 255))
 
-    # ── Subtle dot grid overlay ──
-    for gx in range(0, IMG_SIZE, 36):
-        for gy in range(0, IMG_SIZE, 36):
-            draw.ellipse([gx - 1, gy - 1, gx + 1, gy + 1], fill=(30, 38, 65))
+    # 2. Ambient Lighting Layer (Glow Orbs)
+    glow_layer = Image.new("RGBA", (IMG_W, IMG_H), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
 
-    # ── Fonts ──
-    f_brand     = _load_font(26, bold=True)
-    f_title_lg  = _load_font(52, bold=True)
-    f_date_lg   = _load_font(22, bold=True)       # NEW: big prominent date
-    f_col_hdr   = _load_font(24, bold=True)
-    f_rank      = _load_font(22, bold=True)
-    f_company   = _load_font(20, bold=True)
-    f_ticker    = _load_font(15, bold=False)
-    f_pct       = _load_font(24, bold=True)
-    f_footer    = _load_font(15, bold=False)
-    f_hashtag   = _load_font(13, bold=False)
+    # Top Cyan glow behind title
+    for rad, alpha in [(300, 14), (200, 22), (100, 30)]:
+        glow_draw.ellipse([540 - rad, 110 - rad // 2, 540 + rad, 110 + rad // 2],
+                          fill=(56, 189, 248, alpha))
 
-    # ──────────────────── HEADER ────────────────────
-    HEADER_H = 180
+    # Left Emerald glow behind Gainers
+    for rad, alpha in [(380, 16), (250, 24), (120, 32)]:
+        glow_draw.ellipse([270 - rad, 760 - rad, 270 + rad, 760 + rad],
+                          fill=(16, 185, 129, alpha))
 
-    # Brand pill (top center)
-    brand_text = "StockAnalytics.me"
+    # Right Ruby glow behind Losers
+    for rad, alpha in [(380, 16), (250, 24), (120, 32)]:
+        glow_draw.ellipse([810 - rad, 760 - rad, 810 + rad, 760 + rad],
+                          fill=(244, 63, 94, alpha))
+
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(35))
+    base = Image.alpha_composite(base, glow_layer)
+    draw = ImageDraw.Draw(base)
+
+    # Subtle tech background dot grid
+    for gx in range(40, IMG_W, 40):
+        for gy in range(40, IMG_H, 40):
+            draw.point((gx, gy), fill=(255, 255, 255, 12))
+
+    # Load Fonts
+    f_brand      = _load_font(18, "bold")
+    f_badge      = _load_font(13, "bold")
+    f_title      = _load_font(48, "bold")
+    f_date       = _load_font(15, "semibold")
+    f_col_title  = _load_font(21, "bold")
+    f_col_sub    = _load_font(12, "bold")
+    f_rank       = _load_font(13, "bold")
+    f_name       = _load_font(19, "bold")
+    f_ticker     = _load_font(12, "medium")
+    f_tag        = _load_font(11, "bold")
+    f_pct        = _load_font(22, "bold")
+    f_pct_lbl    = _load_font(10, "semibold")
+    f_footer_cta = _load_font(15, "bold")
+    f_footer_sub = _load_font(12, "regular")
+
+    # ──────────────────── HEADER SECTION ────────────────────
+    # Top Brand Bar
+    brand_text = "STOCKANALYSIS.ME"
     bw = draw.textlength(brand_text, font=f_brand)
-    bx = (IMG_SIZE - bw) / 2
-    draw.rounded_rectangle([bx - 18, 16, bx + bw + 18, 56], radius=22,
-                            fill=(20, 32, 68), outline=ACCENT_BLUE, width=2)
-    draw.text((bx, 22), brand_text, font=f_brand, fill=ACCENT_BLUE)
+    bx = PADDING_X
+    draw.rounded_rectangle([bx, 44, bx + bw + 44, 82], radius=19,
+                           fill=(15, 23, 42, 230), outline=(56, 189, 248, 140), width=1)
+    # Glowing green dot inside brand pill
+    draw.ellipse([bx + 14, 59, bx + 22, 67], fill=GREEN_PRIMARY)
+    draw.text((bx + 32, 51), brand_text, font=f_brand, fill=TEXT_WHITE)
 
-    # Main headline
-    headline = "Daily Nifty Predictions"
-    hw = draw.textlength(headline, font=f_title_lg)
-    draw.text(((IMG_SIZE - hw) / 2, 64), headline, font=f_title_lg, fill=TEXT_WHITE)
+    # Right Category Badge
+    cat_text = "NIFTY 50 • AI QUANT MODEL"
+    cw = draw.textlength(cat_text, font=f_badge)
+    cx = IMG_W - PADDING_X - cw - 28
+    draw.rounded_rectangle([cx, 44, cx + cw + 28, 82], radius=19,
+                           fill=(30, 41, 59, 180), outline=(71, 85, 105, 160), width=1)
+    draw.text((cx + 14, 54), cat_text, font=f_badge, fill=ACCENT_CYAN)
 
-    # ── Prominent date badge ──
-    date_str   = prediction_date.strftime("%d %B %Y").upper()
-    day_str    = prediction_date.strftime("%A").upper()
-    full_date  = f"{day_str}  |  {date_str}"
-    dw         = draw.textlength(full_date, font=f_date_lg)
-    dx         = (IMG_SIZE - dw) / 2
-    # Glowing pill background for the date
-    draw.rounded_rectangle(
-        [dx - 22, 124, dx + dw + 22, 166],
-        radius=18,
-        fill=(30, 20, 60),
-        outline=TEXT_GOLD,
-        width=2,
-    )
-    # Left accent stripe inside pill
-    draw.rounded_rectangle([dx - 22, 124, dx - 6, 166], radius=10, fill=TEXT_GOLD)
-    draw.text((dx, 132), full_date, font=f_date_lg, fill=TEXT_GOLD)
+    # Main Headline
+    main_title = "Daily Market Forecast"
+    tw = draw.textlength(main_title, font=f_title)
+    draw.text(((IMG_W - tw) / 2, 114), main_title, font=f_title, fill=TEXT_WHITE)
 
-    # Header divider
-    _glow_line(draw, PADDING, HEADER_H, IMG_SIZE - PADDING, HEADER_H, DIVIDER, width=1)
+    # Date + Forecast Horizon Pill
+    date_formatted = prediction_date.strftime("%A, %d %B %Y").upper()
+    sub_text = f"FORECAST HORIZON: NEXT TRADING DAY   •   {date_formatted}"
+    sw = draw.textlength(sub_text, font=f_date)
+    sx = (IMG_W - sw) / 2
+    draw.rounded_rectangle([sx - 24, 186, sx + sw + 24, 224], radius=19,
+                           fill=(23, 37, 84, 190), outline=(96, 165, 250, 110), width=1)
+    # Dot indicator inside date badge
+    draw.ellipse([sx - 12, 201, sx - 6, 207], fill=ACCENT_CYAN)
+    draw.text((sx + 6, 194), sub_text, font=f_date, fill=ACCENT_CYAN)
 
-    # ──────────────────── COLUMNS ────────────────────
-    FOOTER_H    = 115
-    COLS_TOP    = HEADER_H + 12
-    COLS_BOTTOM = IMG_SIZE - FOOTER_H
+    # Header Divider Line with Center Gradient Accent
+    draw.line([(PADDING_X, 252), (IMG_W - PADDING_X, 252)], fill=(38, 48, 74, 160), width=1)
+    draw.line([(IMG_W // 2 - 130, 252), (IMG_W // 2 + 130, 252)], fill=(56, 189, 248, 220), width=2)
 
-    COL_G_X     = PADDING                       # gainers column X
-    COL_L_X     = PADDING + COL_WIDTH + PADDING  # losers column X
+    # ──────────────────── COLUMNS CONFIGURATION ────────────────────
+    COL_G_X = PADDING_X
+    COL_L_X = PADDING_X + COL_WIDTH + GAP_COL
 
-    # Column header labels
-    gh_text = "TOP GAINERS"
-    lh_text = "TOP LOSERS"
-    CHY     = COLS_TOP + 8
+    CH_Y = 280
+    CH_H = 46
 
-    # Gainer header pill
-    ghw = draw.textlength(gh_text, font=f_col_hdr)
-    draw.rounded_rectangle([COL_G_X - 2, CHY - 6, COL_G_X + ghw + 20, CHY + 36],
-                            radius=10, fill=(10, 50, 28), outline=GAINER_PRIMARY, width=2)
-    draw.text((COL_G_X + 10, CHY), gh_text, font=f_col_hdr, fill=GAINER_PRIMARY)
+    # ── Gainers Header Pill ──
+    draw.rounded_rectangle([COL_G_X, CH_Y, COL_G_X + COL_WIDTH, CH_Y + CH_H], radius=12,
+                           fill=(6, 78, 59, 140), outline=(16, 185, 129, 160), width=1)
+    _draw_arrow(draw, COL_G_X + 18, CH_Y + 16, 14, GREEN_PRIMARY, upward=True)
+    draw.text((COL_G_X + 40, CH_Y + 11), "TOP 5 GAINERS", font=f_col_title, fill=GREEN_PRIMARY)
+    # Sub-badge right
+    gbadge = "BULLISH BIAS"
+    gbw = draw.textlength(gbadge, font=f_col_sub)
+    draw.rounded_rectangle([COL_G_X + COL_WIDTH - gbw - 24, CH_Y + 11, COL_G_X + COL_WIDTH - 12, CH_Y + CH_H - 11],
+                           radius=6, fill=(16, 185, 129, 45))
+    draw.text((COL_G_X + COL_WIDTH - gbw - 18, CH_Y + 14), gbadge, font=f_col_sub, fill=GREEN_LIGHT)
 
-    # Loser header pill
-    lhw = draw.textlength(lh_text, font=f_col_hdr)
-    draw.rounded_rectangle([COL_L_X - 2, CHY - 6, COL_L_X + lhw + 20, CHY + 36],
-                            radius=10, fill=(50, 10, 18), outline=LOSER_PRIMARY, width=2)
-    draw.text((COL_L_X + 10, CHY), lh_text, font=f_col_hdr, fill=LOSER_PRIMARY)
+    # ── Losers Header Pill ──
+    draw.rounded_rectangle([COL_L_X, CH_Y, COL_L_X + COL_WIDTH, CH_Y + CH_H], radius=12,
+                           fill=(136, 19, 55, 140), outline=(244, 63, 94, 160), width=1)
+    _draw_arrow(draw, COL_L_X + 18, CH_Y + 16, 14, RED_PRIMARY, upward=False)
+    draw.text((COL_L_X + 40, CH_Y + 11), "TOP 5 LOSERS", font=f_col_title, fill=RED_PRIMARY)
+    # Sub-badge right
+    lbadge = "BEARISH BIAS"
+    lbw = draw.textlength(lbadge, font=f_col_sub)
+    draw.rounded_rectangle([COL_L_X + COL_WIDTH - lbw - 24, CH_Y + 11, COL_L_X + COL_WIDTH - 12, CH_Y + CH_H - 11],
+                           radius=6, fill=(244, 63, 94, 45))
+    draw.text((COL_L_X + COL_WIDTH - lbw - 18, CH_Y + 14), lbadge, font=f_col_sub, fill=RED_LIGHT)
 
-    # Vertical divider between columns
-    mid_x = PADDING + COL_WIDTH + PADDING // 2
-    _glow_line(draw, mid_x, COLS_TOP, mid_x, COLS_BOTTOM, DIVIDER, width=1)
+    # ──────────────────── CARDS (5 rows) ────────────────────
+    CARD_START_Y = 346
+    CARD_H       = 146
+    CARD_GAP     = 14
 
-    # ── Cards ── (5 per column, so they can be taller)
-    CARD_TOP   = CHY + 50
-    CARD_H     = 112
-    CARD_GAP   = 8
-    RANK_W     = 36
+    def draw_cards(stocks: list[dict], col_x: int, is_gainer: bool):
+        card_outline = CARD_BORDER_GAINER if is_gainer else CARD_BORDER_LOSER
+        primary_col  = GREEN_PRIMARY if is_gainer else RED_PRIMARY
+        badge_bg     = GREEN_BG if is_gainer else RED_BG
 
-    def draw_card_row(items: list[dict], col_x: int, is_gainer: bool):
-        bg_col     = CARD_BG_GAINER if is_gainer else CARD_BG_LOSER
-        accent_col = GAINER_PRIMARY if is_gainer else LOSER_PRIMARY
-        dim_col    = GAINER_DIM     if is_gainer else LOSER_DIM
+        for i, s in enumerate(stocks):
+            cy = CARD_START_Y + i * (CARD_H + CARD_GAP)
 
-        for i, stock in enumerate(items):
-            cy = CARD_TOP + i * (CARD_H + CARD_GAP)
-            cx = col_x
+            # 1. Glass Card Container
+            draw.rounded_rectangle([col_x, cy, col_x + COL_WIDTH, cy + CARD_H], radius=14,
+                                   fill=(15, 23, 42, 225), outline=card_outline, width=1)
 
-            # Card background
-            _draw_card(draw, cx, cy, COL_WIDTH, CARD_H, bg_col, dim_col)
+            # Left accent highlight bar
+            draw.rounded_rectangle([col_x, cy + 24, col_x + 3, cy + CARD_H - 24], radius=2,
+                                   fill=primary_col)
 
-            # Rank badge — filled circle
-            rank_str  = str(i + 1)
-            badge_cx  = cx + RANK_W // 2 + 8
-            badge_cy  = cy + CARD_H // 2
-            badge_r   = 20
-            draw.ellipse(
-                [badge_cx - badge_r, badge_cy - badge_r,
-                 badge_cx + badge_r, badge_cy + badge_r],
-                fill=dim_col,
-            )
-            rw = draw.textlength(rank_str, font=f_rank)
-            draw.text((badge_cx - rw / 2, badge_cy - 13), rank_str,
-                      font=f_rank, fill=TEXT_GOLD)
+            # 2. Rank Badge
+            rank_str = f"#{i+1}"
+            rx = col_x + 16
+            ry = cy + 18
+            rw = 36
+            rh = 26
+            rank_bg = (30, 41, 59, 230) if i > 0 else ((180, 83, 9, 210) if is_gainer else (153, 27, 27, 210))
+            rank_outline = (71, 85, 105, 140) if i > 0 else (ACCENT_GOLD if is_gainer else primary_col)
+            draw.rounded_rectangle([rx, ry, rx + rw, ry + rh], radius=6,
+                                   fill=rank_bg, outline=rank_outline, width=1)
+            rnk_w = draw.textlength(rank_str, font=f_rank)
+            draw.text((rx + (rw - rnk_w) / 2, ry + 5), rank_str, font=f_rank,
+                      fill=TEXT_WHITE if i > 0 else ACCENT_GOLD)
 
-            # Separator after rank
-            sep_x = cx + RANK_W + 22
-            draw.line([(sep_x, cy + 14), (sep_x, cy + CARD_H - 14)],
-                      fill=dim_col, width=1)
+            # 3. Company Name (Up to 21 chars cleanly)
+            cname = s["Company"]
+            if len(cname) > 21:
+                cname = cname[:20] + "…"
+            name_x = rx + rw + 12
+            name_y = cy + 19
+            draw.text((name_x, name_y), cname, font=f_name, fill=TEXT_WHITE)
 
-            # Company name (larger, bold)
-            name_x = sep_x + 14
-            short  = _short_name(stock["Company"], max_len=18)
-            draw.text((name_x, cy + 16), short, font=f_company, fill=TEXT_WHITE)
+            # 4. Ticker Badge (e.g. NSE: RELIANCE)
+            ticker_clean = s["Ticker"].replace(".NS", "")
+            ticker_txt = f"NSE: {ticker_clean}"
+            tick_y = cy + 60
+            draw.rounded_rectangle([col_x + 16, tick_y, col_x + 16 + draw.textlength(ticker_txt, font=f_ticker) + 14, tick_y + 24],
+                                   radius=5, fill=(30, 41, 59, 140), outline=(51, 65, 85, 180), width=1)
+            draw.text((col_x + 23, tick_y + 4), ticker_txt, font=f_ticker, fill=TEXT_SUB)
 
-            # Ticker + Sentiment tag
-            tag_str = f"{stock['Ticker'].replace('.NS','')}  |  {stock['Sentiment']}"
-            draw.text((name_x, cy + 48), tag_str, font=f_ticker, fill=TEXT_MUTED)
+            # 5. Sentiment Badge
+            sent_raw = (s.get("Sentiment") or "NEUTRAL").upper()
+            if "POS" in sent_raw or "BULL" in sent_raw:
+                sent_label = "BULLISH"
+                sent_color = GREEN_PRIMARY
+                sent_bg    = (6, 78, 59, 180)
+            elif "NEG" in sent_raw or "BEAR" in sent_raw:
+                sent_label = "BEARISH"
+                sent_color = RED_PRIMARY
+                sent_bg    = (136, 19, 55, 180)
+            else:
+                sent_label = "NEUTRAL"
+                sent_color = (203, 213, 225)
+                sent_bg    = (51, 65, 85, 180)
 
-            # Predicted return percentage (right-aligned, big)
-            pct_sign  = "+" if stock["Return"] >= 0 else ""
-            pct_str   = f"{pct_sign}{stock['Return']:.2f}%"
-            pct_w     = draw.textlength(pct_str, font=f_pct)
-            pct_x     = cx + COL_WIDTH - pct_w - 12
-            pct_color = GAINER_PRIMARY if stock["Return"] >= 0 else LOSER_PRIMARY
-            draw.text((pct_x, cy + CARD_H // 2 - 14), pct_str,
-                      font=f_pct, fill=pct_color)
+            sent_x = col_x + 16
+            sent_y = cy + 98
+            sent_w = draw.textlength(sent_label, font=f_tag) + 28
+            draw.rounded_rectangle([sent_x, sent_y, sent_x + sent_w, sent_y + 24], radius=6,
+                                   fill=sent_bg, outline=sent_color, width=1)
+            # Dot indicator inside sentiment badge
+            draw.ellipse([sent_x + 8, sent_y + 9, sent_x + 14, sent_y + 15], fill=sent_color)
+            draw.text((sent_x + 20, sent_y + 4), sent_label, font=f_tag, fill=sent_color)
 
-    draw_card_row(gainers, COL_G_X, is_gainer=True)
-    draw_card_row(losers,  COL_L_X, is_gainer=False)
+            # 6. Big Return Pill (Right-Aligned)
+            ret_val = s["Return"]
+            sign = "+" if ret_val >= 0 else ""
+            pct_num_str = f"{sign}{ret_val:.2f}%"
 
-    # ──────────────────── FOOTER ────────────────────
-    footer_y = COLS_BOTTOM + 8
-    _glow_line(draw, PADDING, footer_y, IMG_SIZE - PADDING, footer_y, DIVIDER)
+            num_w = draw.textlength(pct_num_str, font=f_pct)
+            pw = num_w + 40
+            ph = 44
+            px = col_x + COL_WIDTH - pw - 16
+            py = cy + 24
 
-    # Disclaimer line
-    disclaimer = "AI-generated predictions  |  Not financial advice"
-    dw2 = draw.textlength(disclaimer, font=f_footer)
-    draw.text(((IMG_SIZE - dw2) / 2, footer_y + 16), disclaimer,
-              font=f_footer, fill=TEXT_MUTED)
+            draw.rounded_rectangle([px, py, px + pw, py + ph], radius=10,
+                                   fill=badge_bg, outline=primary_col, width=1)
+            # Vector arrow inside pill
+            _draw_arrow(draw, px + 12, py + 16, 13, primary_col, upward=(ret_val >= 0))
+            draw.text((px + 30, py + 8), pct_num_str, font=f_pct, fill=primary_col)
 
-    # Follow CTA
-    cta = "Follow @StockAnalyticsIN for daily pre-market insights"
-    ctaw = draw.textlength(cta, font=f_footer)
-    draw.text(((IMG_SIZE - ctaw) / 2, footer_y + 42), cta,
-              font=f_footer, fill=ACCENT_BLUE)
+            # "PREDICTED 1D" label below pill
+            lbl = "PREDICTED 1D"
+            lbl_w = draw.textlength(lbl, font=f_pct_lbl)
+            draw.text((px + pw - lbl_w - 4, py + ph + 8), lbl, font=f_pct_lbl, fill=TEXT_DIM)
 
-    # Hashtag line
-    hashtags = "#Nifty50  #NSE  #StockMarket  #IndianStocks  #AlgoTrading"
-    hhtw = draw.textlength(hashtags, font=f_hashtag)
-    draw.text(((IMG_SIZE - hhtw) / 2, footer_y + FOOTER_H - 28),
-              hashtags, font=f_hashtag, fill=(55, 75, 110))
+    draw_cards(gainers, COL_G_X, is_gainer=True)
+    draw_cards(losers,  COL_L_X, is_gainer=False)
 
+    # ──────────────────── FOOTER SECTION ────────────────────
+    FOOTER_Y = 1175
+    draw.line([(PADDING_X, FOOTER_Y), (IMG_W - PADDING_X, FOOTER_Y)], fill=(38, 48, 74, 180), width=1)
+    draw.line([(IMG_W // 2 - 90, FOOTER_Y), (IMG_W // 2 + 90, FOOTER_Y)], fill=(56, 189, 248, 200), width=2)
+
+    # Footer Action Container
+    fc_w = IMG_W - (PADDING_X * 2)
+    fc_y = FOOTER_Y + 16
+    draw.rounded_rectangle([PADDING_X, fc_y, PADDING_X + fc_w, fc_y + 70], radius=14,
+                           fill=(15, 23, 42, 210), outline=(51, 65, 85, 140), width=1)
+
+    # Instagram handle pill (Left)
+    handle_txt = " @StockAnalyticsIN "
+    hw = draw.textlength(handle_txt, font=f_footer_cta)
+    hx = PADDING_X + 16
+    hy = fc_y + 16
+    draw.rounded_rectangle([hx, hy, hx + hw + 16, hy + 38], radius=8,
+                           fill=(30, 41, 59, 240), outline=ACCENT_CYAN, width=1)
+    draw.text((hx + 8, hy + 8), handle_txt, font=f_footer_cta, fill=ACCENT_CYAN)
+
+    # Bookmark CTA (Right)
+    cta_main = "Save for tomorrow's market session"
+    cta_w = draw.textlength(cta_main, font=f_footer_cta)
+    cta_rx = PADDING_X + fc_w - cta_w - 38
+    draw.text((cta_rx, hy + 8), cta_main, font=f_footer_cta, fill=TEXT_WHITE)
+    _draw_bookmark_icon(draw, PADDING_X + fc_w - 30, hy + 9, 14, 18, ACCENT_GOLD)
+
+    # Subtitle disclaimer
+    disclaimer = "AI quant predictions generated via ensemble ML • Educational purposes only • Not SEBI registered advice"
+    dw = draw.textlength(disclaimer, font=f_footer_sub)
+    draw.text(((IMG_W - dw) / 2, fc_y + 94), disclaimer, font=f_footer_sub, fill=TEXT_DIM)
+
+    # Export to JPEG bytes
     buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=95, optimize=True)
+    rgb_img = base.convert("RGB")
+    rgb_img.save(buf, format="JPEG", quality=95, optimize=True)
     return buf.getvalue()
 
 
@@ -393,7 +537,7 @@ def upload_to_cloudinary(image_bytes: bytes, public_id: str) -> tuple[str, str]:
         format="jpg",          # Instagram requires JPEG
         access_mode="public",
         transformation=[
-            {"width": 1080, "height": 1080, "crop": "fill"},
+            {"width": 1080, "height": 1350, "crop": "fill"},
             {"quality": "auto:best"},
         ],
     )
