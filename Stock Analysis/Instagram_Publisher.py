@@ -5,15 +5,18 @@ Automated daily pipeline to:
   1. Fetch the latest Top-10 Gainers & Losers from the `final_analysis` Supabase table.
   2. Fetch AI accuracy scorecard from `prediction_vs_actual`.
   3. Generate a 4-slide carousel using Pillow.
-  4. Upload images to Cloudinary.
-  5. Publish the carousel to the configured Instagram Professional account via
+  4. Upload images (or Reel video) to Cloudinary.
+  5. Publish the carousel or Reel to the configured Instagram Professional account via
      the Meta Graph API.
 
-Run standalone:
-    python "stock analysis/Instagram_Publisher.py"
+Run standalone (Carousel):
+    python "stock analysis/Instagram_Publisher.py" --format carousel
 
-Or use the --preview flag to only save the image locally (no upload):
-    python "stock analysis/Instagram_Publisher.py" --preview
+Run standalone (Reel):
+    python "stock analysis/Instagram_Publisher.py" --format reel
+
+Or use the --preview flag to only save locally (no upload):
+    python "stock analysis/Instagram_Publisher.py" --format reel --preview
 """
 
 import os
@@ -23,6 +26,7 @@ import time
 import argparse
 import textwrap
 import requests
+import tempfile
 import cloudinary
 import cloudinary.uploader
 from datetime import datetime, date
@@ -30,6 +34,11 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv, find_dotenv
 from sqlalchemy import create_engine, text
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+try:
+    from moviepy.editor import ImageSequenceClip
+except ImportError:
+    ImageSequenceClip = None
 
 # ─────────────────────────────────────────
 # 0. CONFIGURATION
@@ -400,7 +409,47 @@ def generate_carousel_images(gainers: list[dict], losers: list[dict], scorecard:
 
 
 # ─────────────────────────────────────────
-# 4. CLOUDINARY UPLOAD (CAROUSEL)
+# 3.5 REELS VIDEO GENERATION
+# ─────────────────────────────────────────
+def generate_reel_video(slides_bytes: list[bytes], fps: float = 0.285) -> bytes:
+    """
+    Stitches static images into an MP4 video using MoviePy.
+    fps = 0.285 means roughly 3.5 seconds per slide.
+    """
+    if not ImageSequenceClip:
+        raise RuntimeError("moviepy is not installed. Please install it (pip install moviepy) to generate Reels.")
+    
+    print("  Generating Reel video from slides...")
+    temp_files = []
+    
+    for i, b in enumerate(slides_bytes):
+        fd, path = tempfile.mkstemp(suffix=".jpg")
+        with os.fdopen(fd, 'wb') as f:
+            f.write(b)
+        temp_files.append(path)
+        
+    clip = ImageSequenceClip(temp_files, fps=fps)
+    
+    fd, out_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    
+    # Write silent video
+    clip.write_videofile(out_path, codec="libx264", audio=False, logger=None)
+    
+    with open(out_path, "rb") as f:
+        video_bytes = f.read()
+        
+    for p in temp_files:
+        try: os.remove(p)
+        except Exception: pass
+    try: os.remove(out_path)
+    except Exception: pass
+    
+    return video_bytes
+
+
+# ─────────────────────────────────────────
+# 4. CLOUDINARY UPLOAD (CAROUSEL & REELS)
 # ─────────────────────────────────────────
 def upload_carousel_to_cloudinary(image_bytes_list: list[bytes], base_public_id: str) -> list[str]:
     urls = []
@@ -422,9 +471,22 @@ def upload_carousel_to_cloudinary(image_bytes_list: list[bytes], base_public_id:
     time.sleep(3)
     return urls
 
+def upload_video_to_cloudinary(video_bytes: bytes, public_id: str) -> str:
+    print("  Uploading video to Cloudinary...")
+    res = cloudinary.uploader.upload(
+        video_bytes,
+        public_id=public_id,
+        folder="stock_analytics",
+        resource_type="video",
+        access_mode="public",
+    )
+    print("  Warming up CDN link...")
+    time.sleep(4)
+    return res["secure_url"]
+
 
 # ─────────────────────────────────────────
-# 5. META GRAPH API (CAROUSEL)
+# 5. META GRAPH API (CAROUSEL & REELS)
 # ─────────────────────────────────────────
 def _ig_get(endpoint: str, params: dict) -> dict:
     resp = requests.get(f"{IG_API_BASE}{endpoint}", params=params, timeout=30)
@@ -438,7 +500,7 @@ def _ig_post(endpoint: str, payload: dict) -> dict:
     if "error" in data: raise RuntimeError(f"Meta API error: {data['error']}")
     return data
 
-def wait_for_media_container(creation_id: str, timeout: int = 90) -> None:
+def wait_for_media_container(creation_id: str, timeout: int = 120) -> None:
     print(f"    Waiting for container {creation_id}...")
     start_time = time.time()
     while time.time() - start_time < timeout:
@@ -481,6 +543,26 @@ def publish_carousel_to_instagram(image_urls: list[str], caption: str) -> str:
     })
     return publish["id"]
 
+def publish_reel_to_instagram(video_url: str, caption: str) -> str:
+    print("  Step 1: Creating Reel container...")
+    container = _ig_post(f"/{IG_ACCOUNT_ID}/media", {
+        "media_type": "REELS",
+        "video_url": video_url,
+        "caption": caption,
+        "share_to_feed": "true",
+        "access_token": IG_ACCESS_TOKEN
+    })
+    
+    creation_id = container["id"]
+    wait_for_media_container(creation_id, timeout=120)
+    
+    print("  Step 2: Publishing Reel...")
+    publish = _ig_post(f"/{IG_ACCOUNT_ID}/media_publish", {
+        "creation_id": creation_id,
+        "access_token": IG_ACCESS_TOKEN
+    })
+    return publish["id"]
+
 
 # ─────────────────────────────────────────
 # 6. CAPTION BUILDER
@@ -512,10 +594,10 @@ def build_caption(gainers: list[dict], losers: list[dict], scorecard: list[dict]
 # ─────────────────────────────────────────
 # 7. MAIN
 # ─────────────────────────────────────────
-def main(preview_only: bool = False):
+def main(preview_only: bool = False, format_type: str = "carousel"):
     now = datetime.now(ZoneInfo("Asia/Kolkata"))
     print(f"\n{'=' * 55}")
-    print(f"  Instagram Carousel Publisher  |  {now.strftime('%Y-%m-%d %H:%M:%S IST')}")
+    print(f"  Instagram Publisher ({format_type.upper()})  |  {now.strftime('%Y-%m-%d %H:%M:%S IST')}")
     print(f"{'=' * 55}")
 
     print("\n[1/5] Fetching data...")
@@ -527,30 +609,62 @@ def main(preview_only: bool = False):
     slides_bytes = generate_carousel_images(gainers, losers, scorecard, prediction_date)
     print(f"  Generated {len(slides_bytes)} slides.")
 
-    if preview_only:
-        os.makedirs(PREVIEW_DIR, exist_ok=True)
-        for i, b in enumerate(slides_bytes):
-            p = os.path.join(PREVIEW_DIR, f"slide_{i}.jpg")
-            with open(p, "wb") as f: f.write(b)
-        print(f"\n[OK] Saved {len(slides_bytes)} preview slides to {PREVIEW_DIR}/")
-        return
+    formats_to_run = ["carousel", "reel"] if format_type == "both" else [format_type]
 
-    print("\n[3/5] Uploading to Cloudinary...")
-    base_id = f"daily_carousel_{prediction_date.strftime('%Y%m%d')}_{int(time.time())}"
-    image_urls = upload_carousel_to_cloudinary(slides_bytes, base_id)
+    for fmt in formats_to_run:
+        print(f"\n--- Processing {fmt.upper()} ---")
+        
+        if fmt == "reel":
+            print("  Compiling Reel video...")
+            reel_bytes = generate_reel_video(slides_bytes)
 
-    caption = build_caption(gainers, losers, scorecard, prediction_date)
+            if preview_only:
+                os.makedirs(PREVIEW_DIR, exist_ok=True)
+                p = os.path.join(PREVIEW_DIR, f"preview_reel.mp4")
+                with open(p, "wb") as f: f.write(reel_bytes)
+                print(f"  [OK] Saved preview reel to {p}")
+                continue
+                
+            print("  Uploading to Cloudinary...")
+            base_id = f"daily_reel_{prediction_date.strftime('%Y%m%d')}_{int(time.time())}"
+            video_url = upload_video_to_cloudinary(reel_bytes, base_id)
 
-    print("\n[4/5] Publishing to Instagram...")
-    media_id = publish_carousel_to_instagram(image_urls, caption)
+            caption = build_caption(gainers, losers, scorecard, prediction_date)
+
+            print("  Publishing Reel to Instagram...")
+            media_id = publish_reel_to_instagram(video_url, caption)
+            
+            print(f"  [OK] Posted REEL successfully! Media ID: {media_id}")
+
+        else:
+            # Carousel logic
+            if preview_only:
+                os.makedirs(PREVIEW_DIR, exist_ok=True)
+                for i, b in enumerate(slides_bytes):
+                    p = os.path.join(PREVIEW_DIR, f"slide_{i}.jpg")
+                    with open(p, "wb") as f: f.write(b)
+                print(f"  [OK] Saved {len(slides_bytes)} preview slides to {PREVIEW_DIR}/")
+                continue
+
+            print("  Uploading to Cloudinary...")
+            base_id = f"daily_carousel_{prediction_date.strftime('%Y%m%d')}_{int(time.time())}"
+            image_urls = upload_carousel_to_cloudinary(slides_bytes, base_id)
+
+            caption = build_caption(gainers, losers, scorecard, prediction_date)
+
+            print("  Publishing Carousel to Instagram...")
+            media_id = publish_carousel_to_instagram(image_urls, caption)
+
+            print(f"  [OK] Posted CAROUSEL successfully! Media ID: {media_id}")
 
     print(f"\n{'=' * 55}")
-    print(f"  [OK] Posted Carousel successfully! Media ID: {media_id}")
+    print("  Pipeline Completed!")
     print(f"{'=' * 55}\n")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Post daily stock carousels to Instagram.")
+    parser = argparse.ArgumentParser(description="Post daily stock carousels or reels to Instagram.")
     parser.add_argument("--preview", action="store_true", help="Generate locally without uploading.")
+    parser.add_argument("--format", choices=["carousel", "reel", "both"], default="carousel", help="Format to publish (carousel, reel, or both).")
     args = parser.parse_args()
-    main(preview_only=args.preview)
+    main(preview_only=args.preview, format_type=args.format)

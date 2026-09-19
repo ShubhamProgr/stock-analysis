@@ -16,3 +16,4 @@ torch
 requests
 Pillow
 cloudinary
+moviepy>=1.0.3
