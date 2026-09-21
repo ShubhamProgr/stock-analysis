@@ -36,9 +36,14 @@ from sqlalchemy import create_engine, text
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 try:
-    from moviepy.editor import ImageSequenceClip
+    # moviepy >= 2.0.0
+    from moviepy import ImageSequenceClip
 except ImportError:
-    ImageSequenceClip = None
+    try:
+        # moviepy < 2.0.0
+        from moviepy.editor import ImageSequenceClip
+    except ImportError:
+        ImageSequenceClip = None
 
 # ─────────────────────────────────────────
 # 0. CONFIGURATION
