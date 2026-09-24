@@ -11,12 +11,14 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/three": "^0.186.0",
     "dotenv": "^17.4.2",
     "next": "16.2.10",
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@types/node": "^20",
