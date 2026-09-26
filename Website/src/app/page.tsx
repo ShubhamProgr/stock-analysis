@@ -226,8 +226,8 @@ export default function LandingPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0a0c10",
-        color: "#f2f1ec",
+        background: "#0b100f",
+        color: "#eef5ef",
         fontFamily: "'Inter','Helvetica Neue',Arial,sans-serif",
         overflowX: "hidden",
         position: "relative",
@@ -245,7 +245,7 @@ export default function LandingPage() {
           right: 0,
           bottom: 0,
           background:
-            "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59,91,165,0.12) 0%, transparent 70%)",
+            "radial-gradient(ellipse 70% 55% at 50% 0%, rgba(39,199,122,0.11) 0%, transparent 68%), radial-gradient(ellipse 45% 35% at 10% 58%, rgba(240,95,97,0.08) 0%, transparent 70%)",
           pointerEvents: "none",
           zIndex: 1,
         }}
@@ -258,7 +258,7 @@ export default function LandingPage() {
           right: 0,
           height: "40vh",
           background:
-            "linear-gradient(to top, #0a0c10 0%, transparent 100%)",
+            "linear-gradient(to top, #0b100f 0%, rgba(11,16,15,0.3) 42%, transparent 100%)",
           pointerEvents: "none",
           zIndex: 1,
         }}
@@ -272,7 +272,7 @@ export default function LandingPage() {
           left: 0,
           right: 0,
           zIndex: 100,
-          background: "rgba(10,12,16,0.75)",
+          background: "rgba(11,16,15,0.78)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderBottom: "1px solid rgba(242,241,236,0.06)",
@@ -294,11 +294,11 @@ export default function LandingPage() {
                 width: 34,
                 height: 34,
                 borderRadius: 9,
-                background: "linear-gradient(135deg,#3b5ba5,#7da0de)",
+                background: "linear-gradient(135deg,#148655,#27c77a)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 0 20px rgba(125,160,222,0.4)",
+                boxShadow: "0 0 20px rgba(39,199,122,0.35)",
               }}
             >
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
@@ -419,10 +419,7 @@ export default function LandingPage() {
           <br />
           <span
             style={{
-              background: "linear-gradient(135deg,#f2f1ec 0%,#7da0de 40%,#35c15e 80%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
+              color: "#8de8b4",
             }}
           >
             Stock Intelligence
@@ -460,7 +457,7 @@ export default function LandingPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: 10,
-              background: "linear-gradient(135deg,#3b5ba5 0%,#7da0de 100%)",
+              background: "linear-gradient(135deg,#148655 0%,#27c77a 100%)",
               color: "#fff",
               borderRadius: 12,
               padding: "15px 32px",
@@ -469,7 +466,7 @@ export default function LandingPage() {
               textDecoration: "none",
               border: "1px solid rgba(255,255,255,0.2)",
               boxShadow:
-                "0 0 40px rgba(125,160,222,0.35),0 12px 32px rgba(0,0,0,0.5)",
+                "0 0 40px rgba(39,199,122,0.3),0 12px 32px rgba(0,0,0,0.5)",
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >

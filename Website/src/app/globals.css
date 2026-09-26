@@ -2834,6 +2834,123 @@ table.strategies tr:last-child td {
   }
 }
 
+/* ==================== Landing Candlestick Field ==================== */
+.market-chart-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 76% 35%, rgba(39, 199, 122, 0.14), transparent 28%),
+    radial-gradient(circle at 18% 72%, rgba(240, 95, 97, 0.1), transparent 26%),
+    #0b100f;
+}
+
+.market-chart-svg {
+  position: absolute;
+  inset: 6vh -4vw 0;
+  width: 108%;
+  height: 94%;
+  opacity: 0.92;
+  transform: perspective(1100px) rotateX(8deg) scale(1.04);
+  transform-origin: center bottom;
+}
+
+.chart-grid line {
+  stroke: rgba(176, 201, 185, 0.13);
+  stroke-width: 1;
+  stroke-dasharray: 3 12;
+}
+
+.chart-area {
+  opacity: 0.82;
+}
+
+.trend-line {
+  fill: none;
+  stroke: #8de8b4;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.58;
+  stroke-dasharray: 12 10;
+  animation: chart-flow 8s linear infinite;
+}
+
+.candle {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: candle-rise 700ms cubic-bezier(0.22, 0.75, 0.25, 1) forwards;
+}
+
+.candle line {
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.candle-core {
+  opacity: 0.95;
+}
+
+.chart-labels {
+  fill: rgba(210, 228, 215, 0.55);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.chart-labels .label-positive {
+  fill: #67e39c;
+}
+
+.chart-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0.2;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 3px,
+    rgba(255, 255, 255, 0.03) 4px
+  );
+  mix-blend-mode: screen;
+}
+
+.chart-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background:
+    linear-gradient(180deg, rgba(11, 16, 15, 0.58) 0%, rgba(11, 16, 15, 0.04) 35%, rgba(11, 16, 15, 0.18) 68%, #0b100f 100%),
+    linear-gradient(90deg, rgba(11, 16, 15, 0.72), transparent 20%, transparent 80%, rgba(11, 16, 15, 0.68));
+}
+
+@keyframes candle-rise {
+  from { opacity: 0; transform: translateY(24px) scaleY(0.5); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+@keyframes chart-flow {
+  to { stroke-dashoffset: -176; }
+}
+
+@media (max-width: 700px) {
+  .market-chart-svg {
+    inset: 12vh -48vw 0;
+    width: 196%;
+    height: 86%;
+    opacity: 0.62;
+  }
+
+  .chart-labels {
+    font-size: 10px;
+  }
+}
+
 @keyframes stock-float {
   0%, 100% {
     transform: translateY(0);
