@@ -18,7 +18,7 @@ Real-time data ingestion · NLP sentiment analysis · XGBoost price prediction �
 
 ## What It Does
 
-This platform continuously monitors **Nifty 50+ Indian equities**, fuses financial data with real-time news sentiment, and surfaces actionable insights through a modern web dashboard.
+This platform continuously monitors **Nifty 50+ Indian equities**, fuses financial data with real-time news sentiment and surfaces actionable insights through a modern web dashboard.
 
 | Layer | What happens |
 |---|---|
