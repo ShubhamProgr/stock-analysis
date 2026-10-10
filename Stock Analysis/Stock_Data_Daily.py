@@ -85,8 +85,9 @@ all_data_list = []
 
 print(f"Starting data download for {len(tickers)} tickers...")
 for ticker in tickers:
-    # NOTE: fixed to pull a short 3-day window
-    data = download_with_retry(ticker, period='3d')
+    # Request extra days so a delayed provider response still includes the
+    # most recent completed trading session.
+    data = download_with_retry(ticker, period='5d')
 
     if data is None or data.empty:
         continue
