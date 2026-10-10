@@ -18,7 +18,7 @@ Real-time data ingestion · NLP sentiment analysis · XGBoost price prediction �
 
 ## What It Does
 
-This platform continuously monitors **Nifty 50+ Indian equities**, fuses financial data with real-time news sentiment, and surfaces actionable insights through a modern web dashboard.
+This platform continuously monitors **Nifty 50+ Indian equities**, fuses financial data with real-time news sentiment and surfaces actionable insights through a modern web dashboard.
 
 | Layer | What happens |
 |---|---|
@@ -94,6 +94,12 @@ This platform continuously monitors **Nifty 50+ Indian equities**, fuses financi
 ### Automated Publishing
 - **Daily Reports** — Formatted summary images auto-published to Instagram
 - **Cloudinary CDN** — Image assets managed and delivered via Cloudinary
+
+The scheduled pipeline runs at 17:30 IST from Sunday through Thursday. The
+Sunday run uses Friday's completed market data to generate Monday's prediction;
+the Monday-through-Thursday runs generate predictions for Tuesday through
+Friday. There is intentionally no Friday run because the next market session
+is Monday.
 
 ---
 

@@ -60,7 +60,7 @@ with engine.begin() as conn:
         )
     """))
 
-def download_with_retry(ticker, period='3d', max_retries=3, initial_wait=2):
+def download_with_retry(ticker, period='5d', max_retries=3, initial_wait=2):
     for attempt in range(max_retries):
         try:
             time.sleep(5)
