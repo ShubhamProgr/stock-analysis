@@ -4,11 +4,82 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv, find_dotenv
 
 # Load environment variables from a .env file if it exists (for local testing)
 load_dotenv(find_dotenv())
+
+
+def load_paper_portfolio_section(engine):
+    """Build an email section from the latest persisted paper-trading result."""
+    with engine.connect() as connection:
+        table_exists = connection.execute(
+            text("SELECT to_regclass('paper_portfolio_daily_results')")
+        ).scalar()
+        if table_exists is None:
+            return "Paper portfolio: no completed simulation results yet."
+
+        latest = connection.execute(text('''
+            SELECT trading_date, invested_value, cash, total_value, day_pnl
+            FROM paper_portfolio_daily_results
+            WHERE account_id = :account_id
+            ORDER BY trading_date DESC
+            LIMIT 1
+        '''), {"account_id": "default"}).mappings().first()
+        account = connection.execute(text('''
+            SELECT initial_cash, pending_prediction_date
+            FROM paper_portfolio_account
+            WHERE account_id = :account_id
+        '''), {"account_id": "default"}).mappings().first()
+
+        if account is None:
+            return "Paper portfolio: simulation account has not been initialized yet."
+        initial_cash = float(account["initial_cash"])
+        if latest is None:
+            pending_date = account["pending_prediction_date"]
+            pending_line = f"Pending prediction date: {pending_date}\n" if pending_date else ""
+            return (
+                "Paper portfolio: no completed simulation session yet.\n"
+                f"Starting balance: INR {initial_cash:,.2f}\n{pending_line}"
+            )
+
+        investments = connection.execute(text('''
+            SELECT "Ticker" AS ticker,
+                   "Amount" AS amount,
+                   "Result" AS result,
+                   "Profit_Loss" AS profit_loss
+            FROM paper_investment_records
+            WHERE "Next_Day" = :trading_date
+              AND "Result" IS NOT NULL
+            ORDER BY "Ticker"
+        '''), {"trading_date": latest["trading_date"]}).mappings().all()
+
+    overall_pnl = float(latest["total_value"]) - initial_cash
+    lines = [
+        f"Paper portfolio result for {latest['trading_date']}",
+        f"Invested: INR {float(latest['invested_value']):,.2f}",
+        f"Cash: INR {float(latest['cash']):,.2f}",
+        f"Total value: INR {float(latest['total_value']):,.2f}",
+        f"Day P/L: INR {float(latest['day_pnl']):+,.2f}",
+        f"Overall P/L from INR {initial_cash:,.2f}: INR {overall_pnl:+,.2f}",
+        "",
+        "Investments with results for this session:",
+    ]
+    if investments:
+        lines.append("Ticker | Invested | Result value | P/L")
+        for row in investments:
+            lines.append(
+                f"{row['ticker']} | INR {float(row['amount']):,.2f} | "
+                f"INR {float(row['result']):,.2f} | INR {float(row['profit_loss']):+,.2f}"
+            )
+    else:
+        lines.append("No new positions were opened for this session.")
+
+    pending_date = account["pending_prediction_date"]
+    if pending_date:
+        lines.extend(["", f"Next paper-trade date: {pending_date}"])
+    return "\n".join(lines)
 
 def generate_and_send_report():
     # 1. Load Data from Supabase Postgres
@@ -65,7 +136,11 @@ def generate_and_send_report():
     msg['To'] = ", ".join(RECEIVER_EMAILS)
     msg['Subject'] = f"Daily Stock Report - {max_date}"
 
-    body = f"Hello,\n \nAttached is the stock prediction report for {max_date}."
+    paper_portfolio_section = load_paper_portfolio_section(engine)
+    body = (
+        f"Hello,\n\nAttached is the stock prediction report for {max_date}.\n\n"
+        f"{paper_portfolio_section}"
+    )
     msg.attach(MIMEText(body, 'plain'))
 
     with open(excel_filename, "rb") as f:

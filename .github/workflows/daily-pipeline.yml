@@ -47,7 +47,14 @@ jobs:
       - name: 5. Reconcile Actual vs Predicted
         run: python "Stock Analysis/Actual_vs_Prediction.py"
 
-      - name: 6. Generate and Email Report
+      - name: 6. Run paper portfolio simulation
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PAPER_INITIAL_CASH: '1000'
+          PAPER_ALLOCATIONS: '500,200,100,100,100'
+        run: python "stock analysis/simulate_portfolio.py" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 7. Generate and Email Report
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           BREVO_LOGIN: ${{ secrets.BREVO_LOGIN }}
@@ -57,7 +64,7 @@ jobs:
         run: |
           python "Stock Analysis/Reports.py"
 
-      - name: 7. Post Daily Predictions to Instagram
+      - name: 8. Post Daily Predictions to Instagram
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}

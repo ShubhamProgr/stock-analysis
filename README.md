@@ -178,6 +178,8 @@ INSTAGRAM_ACCESS_TOKEN=
 INSTAGRAM_ACCOUNT_ID=
 ```
 
+For GitHub Actions, add `DATABASE_URL` under **Settings → Secrets and variables → Actions → New repository secret**. The daily workflow uses this secret for the database-backed paper portfolio; it does not need Paytm Money credentials. The simulation uses `PAPER_INITIAL_CASH=1000` and `PAPER_ALLOCATIONS=500,200,100,100,100`, set in the workflow. Its scheduled run is 12:00 UTC (17:30 India time), Sunday through Thursday. Paper account state and daily results persist in `paper_portfolio_*` database tables, so each run continues the same $1,000 simulation instead of replaying old predictions. Each buy is also recorded in `paper_investment_records` with `Invest_On`, `Ticker`, `Amount`, `Next_Day`, and `Result` (the investment's value at the next trading day's close); `Profit_Loss` stores its gain or loss. The Actions run summary shows completed-session results and the upcoming picks.
+
 ### 3. Run with Docker *(recommended)*
 
 ```bash
