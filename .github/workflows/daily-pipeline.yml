@@ -41,7 +41,7 @@ jobs:
       - name: 3. Fetch Daily Stock Data
         run: python "Stock Analysis/Stock_Data_Daily.py"
 
-      - name: 4. Run ML Predictions (Random Forest)
+      - name: 4. Run ML Predictions
         run: python "Stock Analysis/Final_Analysis.py"
 
       - name: 5. Reconcile Actual vs Predicted
