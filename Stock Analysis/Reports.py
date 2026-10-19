@@ -21,7 +21,7 @@ def load_paper_portfolio_section(engine):
             return "Paper portfolio: no completed simulation results yet."
 
         latest = connection.execute(text('''
-            SELECT trading_date, invested_value, cash, total_value, day_pnl
+            SELECT simulation_day, trading_date, invested_value, cash, total_value, day_pnl
             FROM paper_portfolio_daily_results
             WHERE account_id = :account_id
             ORDER BY trading_date DESC
@@ -44,6 +44,13 @@ def load_paper_portfolio_section(engine):
                 f"Starting balance: INR {initial_cash:,.2f}\n{pending_line}"
             )
 
+        history = connection.execute(text('''
+            SELECT simulation_day, trading_date, total_value
+            FROM paper_portfolio_daily_results
+            WHERE account_id = :account_id
+            ORDER BY simulation_day
+        '''), {"account_id": "default"}).mappings().all()
+
         investments = connection.execute(text('''
             SELECT "Ticker" AS ticker,
                    "Amount" AS amount,
@@ -57,15 +64,24 @@ def load_paper_portfolio_section(engine):
 
     overall_pnl = float(latest["total_value"]) - initial_cash
     lines = [
-        f"Paper portfolio result for {latest['trading_date']}",
+        f"Paper portfolio result - Day {latest['simulation_day']} ({latest['trading_date']})",
         f"Invested: INR {float(latest['invested_value']):,.2f}",
         f"Cash: INR {float(latest['cash']):,.2f}",
         f"Total value: INR {float(latest['total_value']):,.2f}",
         f"Day P/L: INR {float(latest['day_pnl']):+,.2f}",
         f"Overall P/L from INR {initial_cash:,.2f}: INR {overall_pnl:+,.2f}",
         "",
-        "Investments with results for this session:",
+        "Simulation progression:",
+        f"Day 0 (initial): INR {initial_cash:,.2f}",
     ]
+    lines.extend(
+        f"Day {row['simulation_day']} ({row['trading_date']}): INR {float(row['total_value']):,.2f}"
+        for row in history
+    )
+    lines.extend([
+        "",
+        "Investments with results for this session:",
+    ])
     if investments:
         lines.append("Ticker | Invested | Result value | P/L")
         for row in investments:

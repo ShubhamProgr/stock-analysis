@@ -87,12 +87,38 @@ CREATE_TABLES = (
         CREATE TABLE IF NOT EXISTS paper_portfolio_daily_results (
             account_id TEXT NOT NULL REFERENCES paper_portfolio_account(account_id),
             trading_date DATE NOT NULL,
+            simulation_day INTEGER NOT NULL,
             invested_value DOUBLE PRECISION NOT NULL,
             cash DOUBLE PRECISION NOT NULL,
             total_value DOUBLE PRECISION NOT NULL,
             day_pnl DOUBLE PRECISION NOT NULL,
             PRIMARY KEY (account_id, trading_date)
         )
+    '''),
+    text('''
+        ALTER TABLE paper_portfolio_daily_results
+        ADD COLUMN IF NOT EXISTS simulation_day INTEGER
+    '''),
+    text('''
+        WITH numbered AS (
+            SELECT account_id, trading_date,
+                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY trading_date) AS day_number
+            FROM paper_portfolio_daily_results
+        )
+        UPDATE paper_portfolio_daily_results AS daily
+        SET simulation_day = numbered.day_number
+        FROM numbered
+        WHERE daily.account_id = numbered.account_id
+          AND daily.trading_date = numbered.trading_date
+          AND daily.simulation_day IS NULL
+    '''),
+    text('''
+        ALTER TABLE paper_portfolio_daily_results
+        ALTER COLUMN simulation_day SET NOT NULL
+    '''),
+    text('''
+        CREATE UNIQUE INDEX IF NOT EXISTS paper_portfolio_daily_simulation_day_idx
+        ON paper_portfolio_daily_results (account_id, simulation_day)
     '''),
     text('''
         ALTER TABLE paper_portfolio_positions
@@ -237,13 +263,20 @@ UPDATE_ACCOUNT = text('''
 
 UPSERT_DAILY_RESULT = text('''
     INSERT INTO paper_portfolio_daily_results
-        (account_id, trading_date, invested_value, cash, total_value, day_pnl)
-    VALUES (:account_id, :trading_date, :invested_value, :cash, :total_value, :day_pnl)
+        (account_id, trading_date, simulation_day, invested_value, cash, total_value, day_pnl)
+    VALUES (:account_id, :trading_date, :simulation_day, :invested_value, :cash, :total_value, :day_pnl)
     ON CONFLICT (account_id, trading_date) DO UPDATE SET
+        simulation_day = EXCLUDED.simulation_day,
         invested_value = EXCLUDED.invested_value,
         cash = EXCLUDED.cash,
         total_value = EXCLUDED.total_value,
         day_pnl = EXCLUDED.day_pnl
+''')
+
+MAX_SIMULATION_DAY_QUERY = text('''
+    SELECT COALESCE(MAX(simulation_day), 0)
+    FROM paper_portfolio_daily_results
+    WHERE account_id = :account_id
 ''')
 
 
@@ -391,6 +424,9 @@ def run_simulation(engine) -> None:
             closes_by_date[row["trading_date"]][row["ticker"]] = float(row["close_price"])
 
         processed_dates = sorted(predictions_by_date)
+        next_simulation_day = int(connection.execute(
+            MAX_SIMULATION_DAY_QUERY, {"account_id": ACCOUNT_ID}
+        ).scalar()) + 1
         for trading_date in processed_dates:
             winners = top_five(predictions_by_date[trading_date])
             if len(winners) != len(TARGET_ALLOCATIONS):
@@ -403,7 +439,11 @@ def run_simulation(engine) -> None:
 
             closes = closes_by_date[trading_date]
             value_before_day = cash + sum(position["market_value"] for position in positions.values())
-            print(f"\nActual results for {trading_date} (the prior close to today's close):")
+            simulation_day = next_simulation_day
+            print(
+                f"\nSimulation day {simulation_day} results for {trading_date} "
+                "(previous close to today's close):"
+            )
             for ticker, position in positions.items():
                 if ticker not in closes:
                     raise RuntimeError(f"Missing {ticker} closing price for {trading_date}.")
@@ -431,6 +471,7 @@ def run_simulation(engine) -> None:
             connection.execute(UPSERT_DAILY_RESULT, {
                 "account_id": ACCOUNT_ID,
                 "trading_date": trading_date,
+                "simulation_day": simulation_day,
                 "invested_value": invested,
                 "cash": cash,
                 "total_value": total,
@@ -438,6 +479,7 @@ def run_simulation(engine) -> None:
             })
 
             last_processed_date = trading_date
+            next_simulation_day += 1
             next_rows = connection.execute(
                 UPCOMING_PREDICTIONS_QUERY,
                 {"after_date": trading_date},
