@@ -7,7 +7,9 @@ connection or real order is made.
 
 import os
 from collections import defaultdict
+from datetime import datetime
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
 
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import create_engine, text
@@ -138,6 +140,40 @@ LATEST_COMPLETED_DATE_QUERY = text('''
       AND fa."Predicted_Return_Pct" IS NOT NULL
       AND sd."Close" IS NOT NULL
       AND sd."Close" > 0
+''')
+
+PREVIOUS_COMPLETED_DATE_QUERY = text('''
+    SELECT MAX(fa."Prediction_Date")
+    FROM final_analysis AS fa
+    JOIN stock_data AS sd
+      ON sd."Ticker" = fa."Ticker"
+     AND sd."Date" = fa."Prediction_Date"
+    WHERE fa."Prediction_Date" < :before_date
+      AND fa."Predicted_Return_Pct" IS NOT NULL
+      AND sd."Close" IS NOT NULL
+      AND sd."Close" > 0
+''')
+
+MISSED_SESSION_DATE_QUERY = text('''
+    SELECT fa."Prediction_Date"
+    FROM final_analysis AS fa
+    JOIN stock_data AS sd
+      ON sd."Ticker" = fa."Ticker"
+     AND sd."Date" = fa."Prediction_Date"
+    WHERE fa."Prediction_Date" <= :latest_completed
+      AND fa."Prediction_Date" >= :today - INTERVAL '3 days'
+      AND fa."Last_Close_Date" IS NOT NULL
+      AND fa."Last_Close_Date" < fa."Prediction_Date"
+      AND fa."Prediction_Date" - fa."Last_Close_Date" > 1
+      AND fa."Predicted_Return_Pct" IS NOT NULL
+      AND fa."Last_Close" IS NOT NULL
+      AND fa."Last_Close" > 0
+      AND sd."Close" IS NOT NULL
+      AND sd."Close" > 0
+    GROUP BY fa."Prediction_Date"
+    HAVING COUNT(DISTINCT fa."Ticker") >= 5
+    ORDER BY fa."Prediction_Date" DESC
+    LIMIT 1
 ''')
 
 COMPLETED_PREDICTIONS_QUERY = text('''
@@ -362,13 +398,44 @@ def run_simulation(engine) -> None:
         latest_completed = connection.execute(LATEST_COMPLETED_DATE_QUERY).scalar()
         account_row = connection.execute(GET_ACCOUNT, {"account_id": ACCOUNT_ID}).mappings().first()
         if account_row is None:
-            # Start a fresh live paper account now. Historical rows are used only
-            # to identify the current session; we do not replay old predictions.
+            # Recover a recent missed session (typically Monday after a missed
+            # Sunday run) from retained predictions using the prior session close.
+            # The short date window prevents an ordinary Sunday bootstrap from
+            # replaying an older Monday prediction.
+            today_in_market_timezone = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+            start_date = latest_completed
+            if latest_completed is not None:
+                missed_session_date = connection.execute(
+                    MISSED_SESSION_DATE_QUERY,
+                    {"latest_completed": latest_completed, "today": today_in_market_timezone},
+                ).scalar()
+            else:
+                missed_session_date = None
+            if missed_session_date is not None:
+                prior_completed = connection.execute(
+                    PREVIOUS_COMPLETED_DATE_QUERY,
+                    {"before_date": missed_session_date},
+                ).scalar()
+                missed_session_rows = connection.execute(
+                    UPCOMING_PREDICTIONS_QUERY,
+                    {"after_date": prior_completed},
+                ).mappings().all()
+                missed_session = top_five(missed_session_rows)
+                if (
+                    len(missed_session) == len(TARGET_ALLOCATIONS)
+                    and missed_session[0]["prediction_date"] == missed_session_date
+                ):
+                    start_date = prior_completed
+                    print(
+                        f"Recovering missed paper entry for {missed_session_date} "
+                        "from the stored prior-session closes."
+                    )
+
             connection.execute(INSERT_ACCOUNT, {
                 "account_id": ACCOUNT_ID,
                 "initial_cash": INITIAL_CASH,
                 "cash": INITIAL_CASH,
-                "last_processed_date": latest_completed,
+                "last_processed_date": start_date,
             })
             account_row = connection.execute(GET_ACCOUNT, {"account_id": ACCOUNT_ID}).mappings().one()
             print(f"Started a new paper portfolio with INR {INITIAL_CASH:.2f}.")
