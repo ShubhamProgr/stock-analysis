@@ -490,14 +490,28 @@ def run_simulation(engine) -> None:
         for row in close_rows:
             closes_by_date[row["trading_date"]][row["ticker"]] = float(row["close_price"])
 
-        processed_dates = sorted(predictions_by_date)
+        # A pending portfolio only needs its held tickers' actual closes to
+        # produce a result. Do not require five prediction rows here: that
+        # requirement is for the next allocation, not for marking existing
+        # positions to market.
+        processed_dates = sorted(set(predictions_by_date) | set(closes_by_date))
         next_simulation_day = int(connection.execute(
             MAX_SIMULATION_DAY_QUERY, {"account_id": ACCOUNT_ID}
         ).scalar()) + 1
         for trading_date in processed_dates:
             winners = top_five(predictions_by_date[trading_date])
-            if len(winners) != len(TARGET_ALLOCATIONS):
+            if not positions:
+                print(
+                    f"Skipping {trading_date}: there are no open positions to value "
+                    "for this session."
+                )
                 continue
+            if len(winners) != len(TARGET_ALLOCATIONS):
+                print(
+                    f"Only {len(winners)} usable prediction rows are available for "
+                    f"{trading_date}; valuing the existing portfolio and keeping its "
+                    "current holdings until a complete next allocation is available."
+                )
             if account_row["pending_prediction_date"] != trading_date:
                 print(
                     f"\nWarning: portfolio was set for {account_row['pending_prediction_date']}, "
@@ -552,7 +566,11 @@ def run_simulation(engine) -> None:
                 {"after_date": trading_date},
             ).mappings().all()
             next_winners = top_five(next_rows)
-            next_prediction_date = next_winners[0]["prediction_date"] if len(next_winners) == 5 else None
+            next_prediction_date = (
+                next_winners[0]["prediction_date"]
+                if len(next_winners) == len(TARGET_ALLOCATIONS)
+                else None
+            )
             if next_prediction_date is not None:
                 print(f"  Rebalance at {trading_date} close for predictions dated {next_prediction_date}:")
                 cash = buy_new_winners(
