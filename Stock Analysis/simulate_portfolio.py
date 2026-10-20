@@ -1,15 +1,7 @@
-"""Persist and report a database-backed paper portfolio.
-
-Predictions come from ``final_analysis`` and actual closes from ``stock_data``.
-The paper account is stored in dedicated ``paper_portfolio_*`` tables. No broker
-connection or real order is made.
-"""
+"""Run a two-table, database-backed paper portfolio simulation."""
 
 import os
-from collections import defaultdict
-from datetime import datetime
 from urllib.parse import quote_plus
-from zoneinfo import ZoneInfo
 
 from dotenv import find_dotenv, load_dotenv
 from sqlalchemy import create_engine, text
@@ -21,23 +13,16 @@ TARGET_ALLOCATIONS = tuple(
     float(value.strip())
     for value in os.getenv("PAPER_ALLOCATIONS", "500,200,100,100,100").split(",")
 )
-ACCOUNT_ID = "default"
 
 
 def build_database_url() -> str:
-    """Use the same DATABASE_URL/SUPABASE_DB_* settings as project scripts."""
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         return database_url
-
     host = os.getenv("SUPABASE_DB_HOST")
     password = os.getenv("SUPABASE_DB_PASSWORD")
     if not host or not password:
-        raise RuntimeError(
-            "Database settings not found. Set DATABASE_URL or SUPABASE_DB_HOST "
-            "and SUPABASE_DB_PASSWORD in the project .env file."
-        )
-
+        raise RuntimeError("Set DATABASE_URL or SUPABASE_DB_HOST and SUPABASE_DB_PASSWORD.")
     user = os.getenv("SUPABASE_DB_USER", "postgres")
     port = os.getenv("SUPABASE_DB_PORT", "5432")
     name = os.getenv("SUPABASE_DB_NAME", "postgres")
@@ -48,559 +33,436 @@ def build_database_url() -> str:
     )
 
 
-CREATE_TABLES = (
-    text('''
-        CREATE TABLE IF NOT EXISTS paper_portfolio_account (
-            account_id TEXT PRIMARY KEY,
-            initial_cash DOUBLE PRECISION NOT NULL,
-            cash DOUBLE PRECISION NOT NULL,
-            last_processed_date DATE,
-            pending_prediction_date DATE,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-    '''),
-    text('''
-        CREATE TABLE IF NOT EXISTS paper_investment_records (
-            id BIGSERIAL PRIMARY KEY,
-            "Invest_On" DATE NOT NULL,
-            "Ticker" TEXT NOT NULL,
-            "Amount" DOUBLE PRECISION NOT NULL,
-            "Next_Day" DATE NOT NULL,
-            "Result" DOUBLE PRECISION,
-            "Profit_Loss" DOUBLE PRECISION,
-            "Shares" DOUBLE PRECISION NOT NULL
-        )
-    '''),
-    text('''
-        CREATE TABLE IF NOT EXISTS paper_portfolio_positions (
-            account_id TEXT NOT NULL REFERENCES paper_portfolio_account(account_id),
-            ticker TEXT NOT NULL,
-            shares DOUBLE PRECISION NOT NULL,
-            cost_basis DOUBLE PRECISION NOT NULL,
-            market_value DOUBLE PRECISION NOT NULL,
-            entry_price DOUBLE PRECISION NOT NULL,
-            opened_for DATE NOT NULL,
-            investment_id BIGINT REFERENCES paper_investment_records(id),
-            PRIMARY KEY (account_id, ticker)
-        )
-    '''),
-    text('''
-        CREATE TABLE IF NOT EXISTS paper_portfolio_daily_results (
-            account_id TEXT NOT NULL REFERENCES paper_portfolio_account(account_id),
-            trading_date DATE NOT NULL,
-            simulation_day INTEGER NOT NULL,
-            invested_value DOUBLE PRECISION NOT NULL,
-            cash DOUBLE PRECISION NOT NULL,
-            total_value DOUBLE PRECISION NOT NULL,
-            day_pnl DOUBLE PRECISION NOT NULL,
-            PRIMARY KEY (account_id, trading_date)
-        )
-    '''),
-    text('''
-        ALTER TABLE paper_portfolio_daily_results
-        ADD COLUMN IF NOT EXISTS simulation_day INTEGER
-    '''),
-    text('''
-        WITH numbered AS (
-            SELECT account_id, trading_date,
-                   ROW_NUMBER() OVER (PARTITION BY account_id ORDER BY trading_date) AS day_number
-            FROM paper_portfolio_daily_results
-        )
-        UPDATE paper_portfolio_daily_results AS daily
-        SET simulation_day = numbered.day_number
-        FROM numbered
-        WHERE daily.account_id = numbered.account_id
-          AND daily.trading_date = numbered.trading_date
-          AND daily.simulation_day IS NULL
-    '''),
-    text('''
-        ALTER TABLE paper_portfolio_daily_results
-        ALTER COLUMN simulation_day SET NOT NULL
-    '''),
-    text('''
-        CREATE UNIQUE INDEX IF NOT EXISTS paper_portfolio_daily_simulation_day_idx
-        ON paper_portfolio_daily_results (account_id, simulation_day)
-    '''),
-    text('''
-        ALTER TABLE paper_portfolio_positions
-        ADD COLUMN IF NOT EXISTS investment_id BIGINT
-        REFERENCES paper_investment_records(id)
-    '''),
-)
-
-
-LATEST_COMPLETED_DATE_QUERY = text('''
-    SELECT MAX(fa."Prediction_Date")
-    FROM final_analysis AS fa
-    JOIN stock_data AS sd
-      ON sd."Ticker" = fa."Ticker"
-     AND sd."Date" = fa."Prediction_Date"
-    WHERE fa."Prediction_Date" IS NOT NULL
-      AND fa."Predicted_Return_Pct" IS NOT NULL
-      AND sd."Close" IS NOT NULL
-      AND sd."Close" > 0
-''')
-
-PREVIOUS_COMPLETED_DATE_QUERY = text('''
-    SELECT MAX(fa."Prediction_Date")
-    FROM final_analysis AS fa
-    JOIN stock_data AS sd
-      ON sd."Ticker" = fa."Ticker"
-     AND sd."Date" = fa."Prediction_Date"
-    WHERE fa."Prediction_Date" < :before_date
-      AND fa."Predicted_Return_Pct" IS NOT NULL
-      AND sd."Close" IS NOT NULL
-      AND sd."Close" > 0
-''')
-
-MISSED_SESSION_DATE_QUERY = text('''
-    SELECT fa."Prediction_Date"
-    FROM final_analysis AS fa
-    JOIN stock_data AS sd
-      ON sd."Ticker" = fa."Ticker"
-     AND sd."Date" = fa."Prediction_Date"
-    WHERE fa."Prediction_Date" <= :latest_completed
-      AND fa."Prediction_Date" >= :today - INTERVAL '3 days'
-      AND fa."Last_Close_Date" IS NOT NULL
-      AND fa."Last_Close_Date" < fa."Prediction_Date"
-      AND fa."Prediction_Date" - fa."Last_Close_Date" > 1
-      AND fa."Predicted_Return_Pct" IS NOT NULL
-      AND fa."Last_Close" IS NOT NULL
-      AND fa."Last_Close" > 0
-      AND sd."Close" IS NOT NULL
-      AND sd."Close" > 0
-    GROUP BY fa."Prediction_Date"
-    HAVING COUNT(DISTINCT fa."Ticker") >= 5
-    ORDER BY fa."Prediction_Date" DESC
-    LIMIT 1
-''')
-
-COMPLETED_PREDICTIONS_QUERY = text('''
-    SELECT fa."Prediction_Date" AS prediction_date,
-           fa."Ticker" AS ticker,
-           fa."Predicted_Return_Pct" AS predicted_return_pct,
-           fa."Last_Close_Date" AS entry_date,
-           fa."Last_Close" AS entry_price
-    FROM final_analysis AS fa
-    JOIN stock_data AS sd
-      ON sd."Ticker" = fa."Ticker"
-     AND sd."Date" = fa."Prediction_Date"
-    WHERE (:after_date IS NULL OR fa."Prediction_Date" > :after_date)
-      AND fa."Predicted_Return_Pct" IS NOT NULL
-      AND fa."Last_Close_Date" IS NOT NULL
-      AND fa."Last_Close" IS NOT NULL
-      AND fa."Last_Close" > 0
-      AND sd."Close" IS NOT NULL
-      AND sd."Close" > 0
-    ORDER BY fa."Prediction_Date" ASC,
-             fa."Predicted_Return_Pct" DESC NULLS LAST
-''')
-
-COMPLETED_CLOSES_QUERY = text('''
-    SELECT sd."Date" AS trading_date,
-           sd."Ticker" AS ticker,
-           sd."Close" AS close_price
-    FROM stock_data AS sd
-    WHERE sd."Date" IN (
-        SELECT DISTINCT fa."Prediction_Date"
-        FROM final_analysis AS fa
-        JOIN stock_data AS matching_day
-          ON matching_day."Ticker" = fa."Ticker"
-         AND matching_day."Date" = fa."Prediction_Date"
-        WHERE (:after_date IS NULL OR fa."Prediction_Date" > :after_date)
+CREATE_HOLDINGS = text('''
+    CREATE TABLE IF NOT EXISTS paper_simulation_holdings (
+        id BIGSERIAL UNIQUE,
+        investment_date DATE NOT NULL,
+        ticker TEXT NOT NULL,
+        amount DOUBLE PRECISION NOT NULL,
+        shares DOUBLE PRECISION NOT NULL,
+        entry_price DOUBLE PRECISION NOT NULL,
+        market_value DOUBLE PRECISION NOT NULL,
+        next_day DATE,
+        result DOUBLE PRECISION,
+        profit_loss DOUBLE PRECISION,
+        PRIMARY KEY (investment_date, ticker)
     )
-      AND sd."Close" IS NOT NULL
-      AND sd."Close" > 0
 ''')
 
-UPCOMING_PREDICTIONS_QUERY = text('''
+CREATE_TOTALS = text('''
+    CREATE TABLE IF NOT EXISTS paper_simulation_daily_totals (
+        trading_date DATE PRIMARY KEY,
+        simulation_day INTEGER NOT NULL UNIQUE,
+        total_value DOUBLE PRECISION NOT NULL,
+        profit_loss DOUBLE PRECISION NOT NULL
+    )
+''')
+
+COPY_OLD_INVESTMENTS = text('''
+    INSERT INTO paper_simulation_holdings
+        (id, investment_date, ticker, amount, shares, entry_price, market_value,
+         next_day, result, profit_loss)
+    SELECT DISTINCT ON ("Invest_On", "Ticker")
+           id, "Invest_On", "Ticker", "Amount", "Shares",
+           CASE WHEN "Shares" > 0 THEN "Amount" / "Shares" ELSE 0 END,
+           COALESCE("Result", "Amount"), "Next_Day", "Result", "Profit_Loss"
+    FROM paper_investment_records
+    ORDER BY "Invest_On", "Ticker", id DESC
+    ON CONFLICT (investment_date, ticker) DO NOTHING
+''')
+
+RESET_HOLDING_ID_SEQUENCE = text('''
+    SELECT setval(
+        pg_get_serial_sequence('paper_simulation_holdings', 'id'),
+        GREATEST(COALESCE((SELECT MAX(id) FROM paper_simulation_holdings), 1), 1),
+        EXISTS (SELECT 1 FROM paper_simulation_holdings)
+    )
+''')
+
+COPY_OLD_POSITIONS = text('''
+    INSERT INTO paper_simulation_holdings
+        (investment_date, ticker, amount, shares, entry_price, market_value,
+         next_day, result, profit_loss)
+    SELECT COALESCE(i."Invest_On", a.last_processed_date, p.opened_for),
+           p.ticker, p.cost_basis, p.shares, p.entry_price, p.market_value,
+           p.opened_for, i."Result", i."Profit_Loss"
+    FROM paper_portfolio_positions p
+    JOIN paper_portfolio_account a ON a.account_id = p.account_id
+    LEFT JOIN paper_investment_records i ON i.id = p.investment_id
+    WHERE p.account_id = 'default'
+    ON CONFLICT (investment_date, ticker) DO UPDATE SET
+        amount = EXCLUDED.amount,
+        shares = EXCLUDED.shares,
+        entry_price = EXCLUDED.entry_price,
+        market_value = EXCLUDED.market_value,
+        next_day = EXCLUDED.next_day,
+        result = EXCLUDED.result,
+        profit_loss = EXCLUDED.profit_loss
+''')
+
+COPY_OLD_TOTALS = text('''
+    INSERT INTO paper_simulation_daily_totals
+        (trading_date, simulation_day, total_value, profit_loss)
+    SELECT trading_date, simulation_day, total_value, day_pnl
+    FROM paper_portfolio_daily_results
+    WHERE account_id = 'default'
+    ON CONFLICT (trading_date) DO UPDATE SET
+        simulation_day = EXCLUDED.simulation_day,
+        total_value = EXCLUDED.total_value,
+        profit_loss = EXCLUDED.profit_loss
+''')
+
+INSERT_DAY_ZERO = text('''
+    INSERT INTO paper_simulation_daily_totals
+        (trading_date, simulation_day, total_value, profit_loss)
+    SELECT MIN(investment_date), 0,
+           :initial_cash, 0
+    FROM paper_simulation_holdings
+    HAVING COUNT(*) > 0
+    ON CONFLICT (trading_date) DO UPDATE SET
+        total_value = EXCLUDED.total_value,
+        profit_loss = 0
+    WHERE paper_simulation_daily_totals.simulation_day = 0
+''')
+
+LATEST_COMPLETED_DATE = text('''
+    SELECT MAX(fa."Prediction_Date")
+    FROM final_analysis fa
+    JOIN stock_data sd
+      ON sd."Ticker" = fa."Ticker" AND sd."Date" = fa."Prediction_Date"
+    WHERE fa."Predicted_Return_Pct" IS NOT NULL AND sd."Close" > 0
+''')
+
+UPCOMING_PREDICTIONS = text('''
     SELECT fa."Prediction_Date" AS prediction_date,
            fa."Ticker" AS ticker,
            fa."Predicted_Return_Pct" AS predicted_return_pct,
            fa."Last_Close_Date" AS entry_date,
            fa."Last_Close" AS entry_price
-    FROM final_analysis AS fa
+    FROM final_analysis fa
     WHERE fa."Prediction_Date" = (
-        SELECT MIN("Prediction_Date")
-        FROM final_analysis
+        SELECT MIN("Prediction_Date") FROM final_analysis
         WHERE (:after_date IS NULL OR "Prediction_Date" > :after_date)
     )
       AND fa."Predicted_Return_Pct" IS NOT NULL
       AND fa."Last_Close_Date" IS NOT NULL
-      AND fa."Last_Close" IS NOT NULL
       AND fa."Last_Close" > 0
     ORDER BY fa."Predicted_Return_Pct" DESC NULLS LAST
 ''')
 
-INSERT_ACCOUNT = text('''
-    INSERT INTO paper_portfolio_account
-        (account_id, initial_cash, cash, last_processed_date)
-    VALUES (:account_id, :initial_cash, :cash, :last_processed_date)
-    ON CONFLICT (account_id) DO NOTHING
+GET_LATEST_TOTAL = text('''
+    SELECT trading_date, simulation_day, total_value
+    FROM paper_simulation_daily_totals
+    ORDER BY trading_date DESC LIMIT 1
 ''')
 
-GET_ACCOUNT = text('''
-    SELECT account_id, initial_cash, cash, last_processed_date, pending_prediction_date
-    FROM paper_portfolio_account
-    WHERE account_id = :account_id
-    FOR UPDATE
+GET_LATEST_HOLDING_DATE = text('''
+    SELECT MAX(investment_date)
+    FROM paper_simulation_holdings
+    WHERE result IS NULL
 ''')
 
-GET_POSITIONS = text('''
-    SELECT ticker, shares, cost_basis, market_value, entry_price, opened_for, investment_id
-    FROM paper_portfolio_positions
-    WHERE account_id = :account_id
+GET_HOLDINGS = text('''
+    SELECT ticker, amount, shares, entry_price, market_value, next_day
+    FROM paper_simulation_holdings
+    WHERE investment_date = :investment_date
     ORDER BY ticker
 ''')
 
-UPSERT_POSITION = text('''
-    INSERT INTO paper_portfolio_positions
-        (account_id, ticker, shares, cost_basis, market_value, entry_price, opened_for, investment_id)
-    VALUES (:account_id, :ticker, :shares, :cost_basis, :market_value, :entry_price, :opened_for, :investment_id)
-    ON CONFLICT (account_id, ticker) DO UPDATE SET
+NEXT_ACTUAL_DATE = text('''
+    SELECT sd."Date"
+    FROM stock_data sd
+    JOIN paper_simulation_holdings h ON h.ticker = sd."Ticker"
+    WHERE h.investment_date = :investment_date
+      AND h.result IS NULL
+      AND sd."Date" >= h.next_day
+      AND sd."Close" > 0
+    GROUP BY sd."Date"
+    HAVING COUNT(DISTINCT h.ticker) = (
+        SELECT COUNT(*) FROM paper_simulation_holdings
+        WHERE investment_date = :investment_date AND result IS NULL
+    )
+    ORDER BY sd."Date"
+    LIMIT 1
+''')
+
+UPDATE_HOLDING_RESULT = text('''
+    UPDATE paper_simulation_holdings
+    SET result = :result,
+        profit_loss = :result - amount
+    WHERE investment_date = :investment_date AND ticker = :ticker AND result IS NULL
+''')
+
+UPSERT_HOLDING = text('''
+    INSERT INTO paper_simulation_holdings
+        (investment_date, ticker, amount, shares, entry_price, market_value,
+         next_day, result, profit_loss)
+    VALUES (:investment_date, :ticker, :amount, :shares, :entry_price,
+            :market_value, :next_day, NULL, NULL)
+    ON CONFLICT (investment_date, ticker) DO UPDATE SET
+        amount = EXCLUDED.amount,
         shares = EXCLUDED.shares,
-        cost_basis = EXCLUDED.cost_basis,
-        market_value = EXCLUDED.market_value,
         entry_price = EXCLUDED.entry_price,
-        opened_for = EXCLUDED.opened_for,
-        investment_id = EXCLUDED.investment_id
+        market_value = EXCLUDED.market_value,
+        next_day = EXCLUDED.next_day,
+        result = NULL,
+        profit_loss = NULL
 ''')
 
-INSERT_INVESTMENT = text('''
-    INSERT INTO paper_investment_records
-        ("Invest_On", "Ticker", "Amount", "Next_Day", "Result", "Profit_Loss", "Shares")
-    VALUES (:invest_on, :ticker, :amount, :next_day, NULL, NULL, :shares)
-    RETURNING id
-''')
-
-UPDATE_INVESTMENT_RESULT = text('''
-    UPDATE paper_investment_records
-    SET "Result" = :result,
-        "Profit_Loss" = :result - "Amount"
-    WHERE id = :investment_id
-      AND "Next_Day" = :next_day
-      AND "Result" IS NULL
-''')
-
-DELETE_POSITION = text('''
-    DELETE FROM paper_portfolio_positions
-    WHERE account_id = :account_id AND ticker = :ticker
-''')
-
-UPDATE_ACCOUNT = text('''
-    UPDATE paper_portfolio_account
-    SET cash = :cash,
-        last_processed_date = :last_processed_date,
-        pending_prediction_date = :pending_prediction_date,
-        updated_at = NOW()
-    WHERE account_id = :account_id
-''')
-
-UPSERT_DAILY_RESULT = text('''
-    INSERT INTO paper_portfolio_daily_results
-        (account_id, trading_date, simulation_day, invested_value, cash, total_value, day_pnl)
-    VALUES (:account_id, :trading_date, :simulation_day, :invested_value, :cash, :total_value, :day_pnl)
-    ON CONFLICT (account_id, trading_date) DO UPDATE SET
+UPSERT_TOTAL = text('''
+    INSERT INTO paper_simulation_daily_totals
+        (trading_date, simulation_day, total_value, profit_loss)
+    VALUES (:trading_date, :simulation_day, :total_value, :profit_loss)
+    ON CONFLICT (trading_date) DO UPDATE SET
         simulation_day = EXCLUDED.simulation_day,
-        invested_value = EXCLUDED.invested_value,
-        cash = EXCLUDED.cash,
         total_value = EXCLUDED.total_value,
-        day_pnl = EXCLUDED.day_pnl
-''')
-
-MAX_SIMULATION_DAY_QUERY = text('''
-    SELECT COALESCE(MAX(simulation_day), 0)
-    FROM paper_portfolio_daily_results
-    WHERE account_id = :account_id
+        profit_loss = EXCLUDED.profit_loss
 ''')
 
 
-def top_five(rows):
-    result = []
-    seen = set()
+def unique_top_five(rows):
+    picks, seen = [], set()
     for row in rows:
         if row["ticker"] in seen:
             continue
         seen.add(row["ticker"])
-        result.append(row)
-        if len(result) == len(TARGET_ALLOCATIONS):
+        picks.append(dict(row))
+        if len(picks) == 5:
             break
-    return result
+    return picks
 
 
-def buy_new_winners(connection, positions, cash, winners, execution_date, pending_date):
-    """Retain overlaps and use sale proceeds to buy newly selected tickers."""
-    winner_tickers = {row["ticker"] for row in winners}
+def migrate_to_two_tables(connection):
+    """Copy existing paper data to two tables, then remove obsolete state tables."""
+    connection.execute(CREATE_HOLDINGS)
+    connection.execute(text('''
+        DO $$ BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'paper_simulation_holdings'
+                  AND column_name = 'holding_date'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'paper_simulation_holdings'
+                  AND column_name = 'investment_date'
+            ) THEN
+                ALTER TABLE paper_simulation_holdings
+                    RENAME COLUMN holding_date TO investment_date;
+            END IF;
+        END $$
+    '''))
+    connection.execute(CREATE_TOTALS)
+    connection.execute(text('''
+        DO $$ BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'paper_simulation_daily_totals'
+                  AND column_name = 'day_pnl'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'paper_simulation_daily_totals'
+                  AND column_name = 'profit_loss'
+            ) THEN
+                ALTER TABLE paper_simulation_daily_totals RENAME COLUMN day_pnl TO profit_loss;
+            ELSIF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'paper_simulation_daily_totals'
+                  AND column_name = 'day_pnl'
+            ) THEN
+                UPDATE paper_simulation_daily_totals SET profit_loss = day_pnl;
+                ALTER TABLE paper_simulation_daily_totals DROP COLUMN day_pnl;
+            END IF;
+        END $$
+    '''))
+    # Remove legacy required columns before inserting into the simplified
+    # schema; otherwise their NOT NULL constraints reject the new rows.
+    connection.execute(text(
+        "ALTER TABLE paper_simulation_daily_totals DROP COLUMN IF EXISTS invested_value"
+    ))
+    connection.execute(text(
+        "ALTER TABLE paper_simulation_daily_totals DROP COLUMN IF EXISTS cash"
+    ))
+    if connection.execute(text("SELECT to_regclass('paper_investment_records')")).scalar():
+        connection.execute(COPY_OLD_INVESTMENTS)
+        connection.execute(RESET_HOLDING_ID_SEQUENCE)
+    if connection.execute(text("SELECT to_regclass('paper_portfolio_positions')")).scalar():
+        connection.execute(COPY_OLD_POSITIONS)
+    if connection.execute(text("SELECT to_regclass('paper_portfolio_daily_results')")).scalar():
+        connection.execute(COPY_OLD_TOTALS)
+    connection.execute(INSERT_DAY_ZERO, {"initial_cash": INITIAL_CASH})
+    # The useful ledger and results are now in the two new tables.
+    connection.execute(text("DROP TABLE IF EXISTS paper_portfolio_positions CASCADE"))
+    connection.execute(text("DROP TABLE IF EXISTS paper_investment_records CASCADE"))
+    connection.execute(text("DROP TABLE IF EXISTS paper_portfolio_daily_results CASCADE"))
+    connection.execute(text("DROP TABLE IF EXISTS paper_portfolio_account CASCADE"))
 
-    for ticker in list(positions):
-        if ticker in winner_tickers:
-            continue
-        position = positions.pop(ticker)
-        cash += position["market_value"]
-        connection.execute(DELETE_POSITION, {"account_id": ACCOUNT_ID, "ticker": ticker})
-        print(
-            f"  Sold {ticker}: INR {position['market_value']:.2f} "
-            f"(P/L INR {position['market_value'] - position['cost_basis']:+.2f})"
-        )
 
-    for rank, row in enumerate(winners):
-        ticker = row["ticker"]
-        if ticker in positions:
-            print(f"  Keep {ticker}: INR {positions[ticker]['market_value']:.2f} invested")
-            continue
-
-        price = float(row["entry_price"])
-        amount = min(TARGET_ALLOCATIONS[rank], cash)
-        if amount <= 0:
-            continue
-        if row["entry_date"] != execution_date:
-            raise RuntimeError(
-                f"{ticker}'s prediction for {pending_date} uses a stale close "
-                f"from {row['entry_date']}; refusing to simulate a mismatched entry."
-            )
-
-        shares = amount / price
-        investment_id = connection.execute(INSERT_INVESTMENT, {
-            "invest_on": execution_date,
-            "ticker": ticker,
-            "amount": amount,
-            "next_day": pending_date,
-            "shares": shares,
-        }).scalar_one()
-        position = {
-            "ticker": ticker,
-            "shares": shares,
-            "cost_basis": amount,
-            "market_value": amount,
-            "entry_price": price,
-            "opened_for": pending_date,
-            "investment_id": investment_id,
-        }
-        positions[ticker] = position
-        cash -= amount
-        connection.execute(UPSERT_POSITION, {"account_id": ACCOUNT_ID, **position})
-        print(f"  Bought {ticker}: INR {amount:.2f} at {row['entry_date']} close INR {price:.2f}")
-
-    return cash
-
-
-def run_simulation(engine) -> None:
-    if len(TARGET_ALLOCATIONS) != 5 or any(amount <= 0 for amount in TARGET_ALLOCATIONS):
-        raise ValueError("PAPER_ALLOCATIONS must contain five positive comma-separated amounts.")
-    if abs(sum(TARGET_ALLOCATIONS) - INITIAL_CASH) > 0.001:
-        raise ValueError(f"Target allocations must total the initial amount (INR {INITIAL_CASH:.2f}).")
+def run_simulation(engine):
+    if len(TARGET_ALLOCATIONS) != 5 or abs(sum(TARGET_ALLOCATIONS) - INITIAL_CASH) > 0.001:
+        raise ValueError("PAPER_ALLOCATIONS must contain five positive amounts totaling PAPER_INITIAL_CASH.")
 
     with engine.begin() as connection:
-        for statement in CREATE_TABLES:
-            connection.execute(statement)
+        migrate_to_two_tables(connection)
+        latest_total = connection.execute(GET_LATEST_TOTAL).mappings().first()
 
-        latest_completed = connection.execute(LATEST_COMPLETED_DATE_QUERY).scalar()
-        account_row = connection.execute(GET_ACCOUNT, {"account_id": ACCOUNT_ID}).mappings().first()
-        if account_row is None:
-            # Recover a recent missed session (typically Monday after a missed
-            # Sunday run) from retained predictions using the prior session close.
-            # The short date window prevents an ordinary Sunday bootstrap from
-            # replaying an older Monday prediction.
-            today_in_market_timezone = datetime.now(ZoneInfo("Asia/Kolkata")).date()
-            start_date = latest_completed
-            if latest_completed is not None:
-                missed_session_date = connection.execute(
-                    MISSED_SESSION_DATE_QUERY,
-                    {"latest_completed": latest_completed, "today": today_in_market_timezone},
-                ).scalar()
-            else:
-                missed_session_date = None
-            if missed_session_date is not None:
-                prior_completed = connection.execute(
-                    PREVIOUS_COMPLETED_DATE_QUERY,
-                    {"before_date": missed_session_date},
-                ).scalar()
-                missed_session_rows = connection.execute(
-                    UPCOMING_PREDICTIONS_QUERY,
-                    {"after_date": prior_completed},
-                ).mappings().all()
-                missed_session = top_five(missed_session_rows)
-                if (
-                    len(missed_session) == len(TARGET_ALLOCATIONS)
-                    and missed_session[0]["prediction_date"] == missed_session_date
-                ):
-                    start_date = prior_completed
-                    print(
-                        f"Recovering missed paper entry for {missed_session_date} "
-                        "from the stored prior-session closes."
-                    )
-
-            connection.execute(INSERT_ACCOUNT, {
-                "account_id": ACCOUNT_ID,
-                "initial_cash": INITIAL_CASH,
-                "cash": INITIAL_CASH,
-                "last_processed_date": start_date,
-            })
-            account_row = connection.execute(GET_ACCOUNT, {"account_id": ACCOUNT_ID}).mappings().one()
-            print(f"Started a new paper portfolio with INR {INITIAL_CASH:.2f}.")
-
-        initial_cash = float(account_row["initial_cash"])
-        cash = float(account_row["cash"])
-        last_processed_date = account_row["last_processed_date"]
-        positions = {
-            row["ticker"]: dict(row)
-            for row in connection.execute(GET_POSITIONS, {"account_id": ACCOUNT_ID}).mappings()
-        }
-
-        # On first start (Sunday evening, for example), invest the account at
-        # the latest close carried by the upcoming prediction rows.
-        if account_row["pending_prediction_date"] is None:
-            upcoming_rows = connection.execute(
-                UPCOMING_PREDICTIONS_QUERY,
-                {"after_date": last_processed_date},
-            ).mappings().all()
-            upcoming = top_five(upcoming_rows)
-            if len(upcoming) == len(TARGET_ALLOCATIONS):
-                prediction_date = upcoming[0]["prediction_date"]
-                execution_date = upcoming[0]["entry_date"]
-                print(f"\nPaper entry plan for {prediction_date} using the previous session's close:")
-                cash = buy_new_winners(
-                    connection, positions, cash, upcoming, execution_date, prediction_date
-                )
-                account_row = dict(account_row)
-                account_row["pending_prediction_date"] = prediction_date
-                connection.execute(UPDATE_ACCOUNT, {
-                    "account_id": ACCOUNT_ID,
-                    "cash": cash,
-                    "last_processed_date": last_processed_date,
-                    "pending_prediction_date": prediction_date,
+        # Bootstrap only when no holding snapshot exists. The session's five
+        # rows use the close carried by the prediction for the upcoming date.
+        snapshot_date = connection.execute(text(
+            "SELECT MAX(investment_date) FROM paper_simulation_holdings"
+        )).scalar()
+        if snapshot_date is None:
+            latest_completed = connection.execute(LATEST_COMPLETED_DATE).scalar()
+            picks = unique_top_five(connection.execute(
+                UPCOMING_PREDICTIONS, {"after_date": latest_completed}
+            ).mappings().all())
+            if len(picks) != 5:
+                print("No upcoming session has five usable predictions; no holdings created.")
+                return
+            invest_on = picks[0]["entry_date"]
+            next_day = picks[0]["prediction_date"]
+            invested = 0.0
+            print(f"Opening five holdings for {next_day} using {invest_on} closes:")
+            for rank, row in enumerate(picks):
+                if row["entry_date"] != invest_on:
+                    raise RuntimeError("The five picks do not share the same entry close date.")
+                amount = TARGET_ALLOCATIONS[rank]
+                price = float(row["entry_price"])
+                shares = amount / price
+                connection.execute(UPSERT_HOLDING, {
+                    "investment_date": invest_on, "ticker": row["ticker"], "amount": amount,
+                    "shares": shares, "entry_price": price, "market_value": amount,
+                    "next_day": next_day,
                 })
+                invested += amount
+                print(f"  {row['ticker']}: INR {amount:.2f} at INR {price:.2f}")
+            connection.execute(UPSERT_TOTAL, {
+                "trading_date": invest_on, "simulation_day": 0,
+                "total_value": INITIAL_CASH, "profit_loss": 0,
+            })
+            latest_total = connection.execute(GET_LATEST_TOTAL).mappings().one()
+
+        # Process any available close for the current five-row snapshot.
+        while True:
+            snapshot_date = connection.execute(GET_LATEST_HOLDING_DATE).scalar()
+            if snapshot_date is None:
+                print("No pending holdings are waiting for a result.")
+                break
+            holdings = [dict(row) for row in connection.execute(
+                GET_HOLDINGS, {"investment_date": snapshot_date}
+            ).mappings().all()]
+            if len(holdings) != 5:
+                print(f"Pending snapshot {snapshot_date} has {len(holdings)} rows; expected five.")
+                break
+            next_day = holdings[0]["next_day"]
+            if next_day is None:
+                print(f"No next trading date is assigned to holdings from {snapshot_date}.")
+                break
+            actual_date = connection.execute(NEXT_ACTUAL_DATE, {
+                "investment_date": snapshot_date,
+            }).scalar()
+            if actual_date is None:
+                print(f"Waiting for closing prices on or after {next_day}; no result recorded yet.")
+                break
+
+            close_rows = connection.execute(text('''
+                SELECT "Ticker" AS ticker, "Close" AS close_price
+                FROM stock_data
+                WHERE "Date" = :trading_date AND "Close" > 0
+            '''), {"trading_date": actual_date}).mappings().all()
+            closes = {row["ticker"]: float(row["close_price"]) for row in close_rows}
+            if any(row["ticker"] not in closes for row in holdings):
+                print(f"Waiting: one or more held tickers lack a close for {actual_date}.")
+                break
+
+            old_total = connection.execute(GET_LATEST_TOTAL).mappings().one()
+            # Cash is not stored in the daily totals table. Reconstruct it from
+            # the latest total and the values in this pending holdings snapshot.
+            cash = max(
+                0.0,
+                float(old_total["total_value"])
+                - sum(float(row["market_value"]) for row in holdings),
+            )
+            positions = {}
+            for row in holdings:
+                value = row["shares"] * closes[row["ticker"]]
+                row["market_value"] = value
+                row["result"] = value
+                row["profit_loss"] = value - row["amount"]
+                positions[row["ticker"]] = row
+                connection.execute(UPDATE_HOLDING_RESULT, {
+                    "investment_date": snapshot_date, "ticker": row["ticker"], "result": value,
+                })
+
+            marked_total = cash + sum(p["market_value"] for p in positions.values())
+            day_number = int(old_total["simulation_day"]) + 1
+            print(f"\nSimulation day {day_number} result for {actual_date}:")
+            for row in holdings:
+                print(
+                    f"  {row['ticker']}: INR {row['market_value']:.2f} "
+                    f"(P/L INR {row['profit_loss']:+.2f})"
+                )
+            print(f"  Total value: INR {marked_total:.2f} (P/L INR {marked_total-float(old_total['total_value']):+.2f})")
+
+            picks = unique_top_five(connection.execute(
+                UPCOMING_PREDICTIONS, {"after_date": actual_date}
+            ).mappings().all())
+            next_prediction_date = picks[0]["prediction_date"] if len(picks) == 5 else None
+            can_rebalance = (
+                len(picks) == 5
+                and all(row["entry_date"] == actual_date for row in picks)
+            )
+            if can_rebalance:
+                selected = {row["ticker"] for row in picks}
+                for ticker in list(positions):
+                    if ticker not in selected:
+                        cash += positions.pop(ticker)["market_value"]
+                for rank, pick in enumerate(picks):
+                    ticker = pick["ticker"]
+                    if ticker in positions:
+                        continue
+                    amount = min(TARGET_ALLOCATIONS[rank], cash)
+                    if amount <= 0:
+                        continue
+                    price = float(pick["entry_price"])
+                    shares = amount / price
+                    positions[ticker] = {
+                        "ticker": ticker, "amount": amount, "shares": shares,
+                        "entry_price": price, "market_value": amount,
+                    }
+                    cash -= amount
             else:
-                print("No upcoming date has five usable predictions yet; initial cash remains uninvested.")
+                print("No complete same-close next allocation is available; keeping current holdings.")
 
-        completed_rows = connection.execute(
-            COMPLETED_PREDICTIONS_QUERY,
-            {"after_date": last_processed_date},
-        ).mappings().all()
-        predictions_by_date = defaultdict(list)
-        for row in completed_rows:
-            predictions_by_date[row["prediction_date"]].append(row)
-
-        close_rows = connection.execute(
-            COMPLETED_CLOSES_QUERY,
-            {"after_date": last_processed_date},
-        ).mappings().all()
-        closes_by_date = defaultdict(dict)
-        for row in close_rows:
-            closes_by_date[row["trading_date"]][row["ticker"]] = float(row["close_price"])
-
-        # A pending portfolio only needs its held tickers' actual closes to
-        # produce a result. Do not require five prediction rows here: that
-        # requirement is for the next allocation, not for marking existing
-        # positions to market.
-        processed_dates = sorted(set(predictions_by_date) | set(closes_by_date))
-        next_simulation_day = int(connection.execute(
-            MAX_SIMULATION_DAY_QUERY, {"account_id": ACCOUNT_ID}
-        ).scalar()) + 1
-        for trading_date in processed_dates:
-            winners = top_five(predictions_by_date[trading_date])
-            if not positions:
-                print(
-                    f"Skipping {trading_date}: there are no open positions to value "
-                    "for this session."
-                )
-                continue
-            if len(winners) != len(TARGET_ALLOCATIONS):
-                print(
-                    f"Only {len(winners)} usable prediction rows are available for "
-                    f"{trading_date}; valuing the existing portfolio and keeping its "
-                    "current holdings until a complete next allocation is available."
-                )
-            if account_row["pending_prediction_date"] != trading_date:
-                print(
-                    f"\nWarning: portfolio was set for {account_row['pending_prediction_date']}, "
-                    f"but database has results for {trading_date}; using its actual closes."
-                )
-
-            closes = closes_by_date[trading_date]
-            value_before_day = cash + sum(position["market_value"] for position in positions.values())
-            simulation_day = next_simulation_day
-            print(
-                f"\nSimulation day {simulation_day} results for {trading_date} "
-                "(previous close to today's close):"
-            )
-            for ticker, position in positions.items():
-                if ticker not in closes:
-                    raise RuntimeError(f"Missing {ticker} closing price for {trading_date}.")
-                position["market_value"] = position["shares"] * closes[ticker]
-                if position.get("investment_id") is not None:
-                    connection.execute(UPDATE_INVESTMENT_RESULT, {
-                        "result": position["market_value"],
-                        "investment_id": position["investment_id"],
-                        "next_day": trading_date,
+            next_day = next_prediction_date if can_rebalance else None
+            if next_day is not None:
+                for p in positions.values():
+                    connection.execute(UPSERT_HOLDING, {
+                        "investment_date": actual_date, "ticker": p["ticker"],
+                        "amount": p["amount"], "shares": p["shares"],
+                        "entry_price": p["entry_price"], "market_value": p["market_value"],
+                        "next_day": next_day,
                     })
-                connection.execute(UPSERT_POSITION, {"account_id": ACCOUNT_ID, **position})
-                print(
-                    f"  {ticker}: INR {position['market_value']:.2f} "
-                    f"(P/L INR {position['market_value'] - position['cost_basis']:+.2f})"
-                )
 
-            invested = sum(position["market_value"] for position in positions.values())
-            total = invested + cash
-            day_pnl = total - value_before_day
+            invested_value = sum(p["market_value"] for p in positions.values())
+            total_value = invested_value + cash
+            connection.execute(UPSERT_TOTAL, {
+                "trading_date": actual_date, "simulation_day": day_number,
+                "total_value": total_value,
+                "profit_loss": total_value - float(old_total["total_value"]),
+            })
+            latest_total = connection.execute(GET_LATEST_TOTAL).mappings().one()
+            if next_day is None:
+                break
+
+        latest_total = connection.execute(GET_LATEST_TOTAL).mappings().first()
+        if latest_total:
             print(
-                f"  End of day: invested INR {invested:.2f}, cash INR {cash:.2f}, "
-                f"total INR {total:.2f}, day P/L INR {day_pnl:+.2f}, "
-                f"overall P/L INR {total - initial_cash:+.2f}"
+                f"\nDay {latest_total['simulation_day']} ({latest_total['trading_date']}): "
+                f"INR {float(latest_total['total_value']):.2f}"
             )
-            connection.execute(UPSERT_DAILY_RESULT, {
-                "account_id": ACCOUNT_ID,
-                "trading_date": trading_date,
-                "simulation_day": simulation_day,
-                "invested_value": invested,
-                "cash": cash,
-                "total_value": total,
-                "day_pnl": day_pnl,
-            })
-
-            last_processed_date = trading_date
-            next_simulation_day += 1
-            next_rows = connection.execute(
-                UPCOMING_PREDICTIONS_QUERY,
-                {"after_date": trading_date},
-            ).mappings().all()
-            next_winners = top_five(next_rows)
-            next_prediction_date = (
-                next_winners[0]["prediction_date"]
-                if len(next_winners) == len(TARGET_ALLOCATIONS)
-                else None
-            )
-            if next_prediction_date is not None:
-                print(f"  Rebalance at {trading_date} close for predictions dated {next_prediction_date}:")
-                cash = buy_new_winners(
-                    connection, positions, cash, next_winners, trading_date, next_prediction_date
-                )
-                # New positions are entered at today's close; unchanged holdings
-                # remain in place and retain their original cost basis.
-                for position in positions.values():
-                    connection.execute(UPSERT_POSITION, {"account_id": ACCOUNT_ID, **position})
-
-            connection.execute(UPDATE_ACCOUNT, {
-                "account_id": ACCOUNT_ID,
-                "cash": cash,
-                "last_processed_date": last_processed_date,
-                "pending_prediction_date": next_prediction_date,
-            })
-            account_row = dict(account_row)
-            account_row["last_processed_date"] = last_processed_date
-            account_row["pending_prediction_date"] = next_prediction_date
-
-        invested = sum(position["market_value"] for position in positions.values())
-        print("\nCurrent paper account")
-        print(f"  Invested: INR {invested:.2f}")
-        print(f"  Cash: INR {cash:.2f}")
-        print(f"  Total: INR {invested + cash:.2f}")
-        print(f"  Overall P/L: INR {invested + cash - initial_cash:+.2f}")
-        print(f"  Pending prediction date: {account_row['pending_prediction_date']}")
 
 
-def main() -> None:
+def main():
     engine = create_engine(build_database_url(), pool_pre_ping=True)
     try:
         run_simulation(engine)

@@ -1,9 +1,9 @@
-﻿<div align="center">
+<div align="center">
 
 # Stock Analysis Platform
 
 **A full-stack, AI-powered stock analysis engine for the Indian equity market.**  
-Real-time data ingestion · NLP sentiment analysis · XGBoost price prediction · Interactive Next.js dashboard
+Real-time data ingestion � NLP sentiment analysis � XGBoost price prediction � Interactive Next.js dashboard
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
@@ -72,28 +72,28 @@ This platform continuously monitors **Nifty 50+ Indian equities**, fuses financi
 ## Features
 
 ### Dashboard & Visualization
-- **Candlestick Charts** — Interactive OHLC charts with EMA, Bollinger Bands, RSI & MACD overlays
-- **Prediction vs. Actual** — Visual comparison of XGBoost forecasts against real closing prices
-- **Sentiment Calendar** — Heatmap of daily aggregated news sentiment per ticker
-- **Price-Sentiment Chart** — Overlaid price and sentiment time series to reveal correlation
-- **Sector Heatmap** — Live sector-level performance view
-- **Top Movers** — Real-time gainers/losers board
+- **Candlestick Charts** � Interactive OHLC charts with EMA, Bollinger Bands, RSI & MACD overlays
+- **Prediction vs. Actual** � Visual comparison of XGBoost forecasts against real closing prices
+- **Sentiment Calendar** � Heatmap of daily aggregated news sentiment per ticker
+- **Price-Sentiment Chart** � Overlaid price and sentiment time series to reveal correlation
+- **Sector Heatmap** � Live sector-level performance view
+- **Top Movers** � Real-time gainers/losers board
 
 ### AI & ML Engine
-- **FinBERT Sentiment** — Financial-domain BERT model classifies news as positive / neutral / negative
-- **XGBoost Prediction** — Per-ticker regression models trained with `TimeSeriesSplit` walk-forward validation, evaluated on MAE, RMSE, and R²
-- **Peer Comparison** — Automatic peer group detection and relative performance ranking
-- **Strategy Backtesting** — Rule-based strategy simulation using predicted signals
+- **FinBERT Sentiment** � Financial-domain BERT model classifies news as positive / neutral / negative
+- **XGBoost Prediction** � Per-ticker regression models trained with `TimeSeriesSplit` walk-forward validation, evaluated on MAE, RMSE, and R�
+- **Peer Comparison** � Automatic peer group detection and relative performance ranking
+- **Strategy Backtesting** � Rule-based strategy simulation using predicted signals
 
 ### Screener & Fundamentals
-- **Stock Screener** — Filter by sector, market cap, momentum, and sentiment score
-- **Company Fundamentals** — P/E, EPS, market cap, 52-week range, dividend yield
-- **Model Insights** — Feature importances and per-model accuracy metrics
-- **Watchlist** — Personalised ticker list persisted in PostgreSQL
+- **Stock Screener** � Filter by sector, market cap, momentum, and sentiment score
+- **Company Fundamentals** � P/E, EPS, market cap, 52-week range, dividend yield
+- **Model Insights** � Feature importances and per-model accuracy metrics
+- **Watchlist** � Personalised ticker list persisted in PostgreSQL
 
 ### Automated Publishing
-- **Daily Reports** — Formatted summary images auto-published to Instagram
-- **Cloudinary CDN** — Image assets managed and delivered via Cloudinary
+- **Daily Reports** � Formatted summary images auto-published to Instagram
+- **Cloudinary CDN** � Image assets managed and delivered via Cloudinary
 
 The scheduled pipeline runs at 17:30 IST from Sunday through Thursday. The
 Sunday run uses Friday's completed market data to generate Monday's prediction;
@@ -154,7 +154,7 @@ cd stock-analysis
 Create a `.env` file at the project root:
 
 ```env
-# Database — Supabase or self-hosted Postgres
+# Database � Supabase or self-hosted Postgres
 DATABASE_URL=postgresql+psycopg2://user:password@host:5432/dbname
 # OR use individual Supabase vars:
 SUPABASE_DB_HOST=
@@ -178,7 +178,7 @@ INSTAGRAM_ACCESS_TOKEN=
 INSTAGRAM_ACCOUNT_ID=
 ```
 
-For GitHub Actions, add `DATABASE_URL` under **Settings → Secrets and variables → Actions → New repository secret**. The daily workflow uses this secret for the database-backed paper portfolio; it does not need Paytm Money credentials. The simulation uses `PAPER_INITIAL_CASH=1000` and `PAPER_ALLOCATIONS=500,200,100,100,100`, set in the workflow. Its scheduled run is 12:00 UTC (17:30 India time), Sunday through Thursday. Paper account state and daily results persist in `paper_portfolio_*` database tables, so each run continues the same $1,000 simulation instead of replaying old predictions. Each buy is also recorded in `paper_investment_records` with `Invest_On`, `Ticker`, `Amount`, `Next_Day`, and `Result` (the investment's value at the next trading day's close); `Profit_Loss` stores its gain or loss. The email includes the current simulation day and the portfolio's Day 0 through latest-day value history.
+For GitHub Actions, add `DATABASE_URL` under **Settings ? Secrets and variables ? Actions ? New repository secret**. The paper simulation does not need Paytm Money credentials. It uses `PAPER_INITIAL_CASH=1000` and `PAPER_ALLOCATIONS=500,200,100,100,100`. Its scheduled run is 12:00 UTC (17:30 India time), Sunday through Thursday. Paper simulation data is stored in two tables: `paper_simulation_holdings` has one row per ticker for each investment date, and `paper_simulation_daily_totals` stores the date, simulation day, total value, and `profit_loss`. Cash is derived from total value and the holdings snapshot, so it is not duplicated in the daily table. The email includes the current simulation day and the Day 0 through latest-day value history. On the first run after upgrading, existing paper records are copied into these two tables before the old paper-only state tables are retired.
 
 ### 3. Run with Docker *(recommended)*
 
@@ -222,7 +222,7 @@ All routes live under `/api/` in the Next.js App Router (`Website/src/app/api/`)
 | `/api/ohlc/[ticker]` | `GET` | OHLCV candlestick data |
 | `/api/sentiment/[ticker]` | `GET` | Daily aggregated sentiment scores |
 | `/api/predictions/[ticker]` | `GET` | XGBoost price predictions |
-| `/api/accuracy/[ticker]` | `GET` | Model accuracy metrics (MAE, RMSE, R²) |
+| `/api/accuracy/[ticker]` | `GET` | Model accuracy metrics (MAE, RMSE, R�) |
 | `/api/peers/[ticker]` | `GET` | Peer comparison data |
 | `/api/compare` | `GET` | Multi-ticker relative performance |
 | `/api/market` | `GET` | Market-wide overview |
@@ -236,36 +236,36 @@ All routes live under `/api/` in the Next.js App Router (`Website/src/app/api/`)
 
 ```
 stock-analysis/
-├── stock analysis/             # Python ML & data engine
-│   ├── Final_Analysis.py       # XGBoost training & prediction pipeline
-│   ├── Sentiment_Analyzer.py   # FinBERT NLP sentiment pipeline
-│   ├── News_Extractor.py       # Financial news scraper & ticker mapper
-│   ├── Stock_Data_Daily.py     # Daily OHLCV ingestion via yfinance
-│   ├── Stock_Data_5Y.py        # 5-year historical data ingestion
-│   ├── Company_Data.py         # Fundamentals fetcher
-│   ├── Instagram_Publisher.py  # Automated Instagram report publisher
-│   ├── Actual_vs_Prediction.py # Backtesting accuracy calculator
-│   └── Reports.py              # Report generation utilities
-│
-├── Website/                    # Next.js 15 frontend
-│   └── src/
-│       ├── app/
-│       │   ├── page.tsx        # Application entry point
-│       │   ├── layout.tsx      # Root layout
-│       │   └── api/            # 11 REST API route handlers
-│       ├── components/         # 25 React components
-│       │   ├── Dashboard.tsx
-│       │   ├── CandlestickChart.tsx
-│       │   ├── StrategyView.tsx
-│       │   ├── ScreenerView.tsx
-│       │   └── ...
-│       └── lib/                # Shared utilities & DB client
-│
-├── data/                       # Local CSV data cache
-├── Dockerfile.engine           # Python engine container
-├── Dockerfile.website          # Next.js website container
-├── docker-compose.yml          # Service orchestration
-└── requirements.txt            # Python dependencies
++-- stock analysis/             # Python ML & data engine
+�   +-- Final_Analysis.py       # XGBoost training & prediction pipeline
+�   +-- Sentiment_Analyzer.py   # FinBERT NLP sentiment pipeline
+�   +-- News_Extractor.py       # Financial news scraper & ticker mapper
+�   +-- Stock_Data_Daily.py     # Daily OHLCV ingestion via yfinance
+�   +-- Stock_Data_5Y.py        # 5-year historical data ingestion
+�   +-- Company_Data.py         # Fundamentals fetcher
+�   +-- Instagram_Publisher.py  # Automated Instagram report publisher
+�   +-- Actual_vs_Prediction.py # Backtesting accuracy calculator
+�   +-- Reports.py              # Report generation utilities
+�
++-- Website/                    # Next.js 15 frontend
+�   +-- src/
+�       +-- app/
+�       �   +-- page.tsx        # Application entry point
+�       �   +-- layout.tsx      # Root layout
+�       �   +-- api/            # 11 REST API route handlers
+�       +-- components/         # 25 React components
+�       �   +-- Dashboard.tsx
+�       �   +-- CandlestickChart.tsx
+�       �   +-- StrategyView.tsx
+�       �   +-- ScreenerView.tsx
+�       �   +-- ...
+�       +-- lib/                # Shared utilities & DB client
+�
++-- data/                       # Local CSV data cache
++-- Dockerfile.engine           # Python engine container
++-- Dockerfile.website          # Next.js website container
++-- docker-compose.yml          # Service orchestration
++-- requirements.txt            # Python dependencies
 ```
 
 ---
@@ -275,7 +275,7 @@ stock-analysis/
 ### XGBoost Price Predictor
 - **Features:** OHLCV lags, EMA crossovers, RSI, Bollinger Band position, daily sentiment score, volume momentum
 - **Validation:** `TimeSeriesSplit` (walk-forward cross-validation) to prevent data leakage
-- **Metrics:** MAE, RMSE, R² reported per ticker per training run
+- **Metrics:** MAE, RMSE, R� reported per ticker per training run
 - **Fallback:** Automatically falls back to `sklearn.GradientBoostingRegressor` if XGBoost is unavailable
 
 ### FinBERT Sentiment Pipeline
@@ -289,9 +289,9 @@ stock-analysis/
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch — `git checkout -b feature/your-feature`
-3. Commit your changes — `git commit -m 'feat: add your feature'`
-4. Push to the branch — `git push origin feature/your-feature`
+2. Create a feature branch � `git checkout -b feature/your-feature`
+3. Commit your changes � `git commit -m 'feat: add your feature'`
+4. Push to the branch � `git push origin feature/your-feature`
 5. Open a Pull Request
 
 ---

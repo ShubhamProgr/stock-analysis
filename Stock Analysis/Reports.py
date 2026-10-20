@@ -12,89 +12,67 @@ load_dotenv(find_dotenv())
 
 
 def load_paper_portfolio_section(engine):
-    """Build an email section from the latest persisted paper-trading result."""
+    """Build an email section from the two paper simulation tables."""
     with engine.connect() as connection:
         table_exists = connection.execute(
-            text("SELECT to_regclass('paper_portfolio_daily_results')")
+            text("SELECT to_regclass('paper_simulation_daily_totals')")
         ).scalar()
         if table_exists is None:
-            return "Paper portfolio: no completed simulation results yet."
+            return "Paper portfolio: simulation tables have not been initialized yet."
 
         latest = connection.execute(text('''
-            SELECT simulation_day, trading_date, invested_value, cash, total_value, day_pnl
-            FROM paper_portfolio_daily_results
-            WHERE account_id = :account_id
+            SELECT simulation_day, trading_date, total_value, profit_loss
+            FROM paper_simulation_daily_totals
             ORDER BY trading_date DESC
             LIMIT 1
-        '''), {"account_id": "default"}).mappings().first()
-        account = connection.execute(text('''
-            SELECT initial_cash, pending_prediction_date
-            FROM paper_portfolio_account
-            WHERE account_id = :account_id
-        '''), {"account_id": "default"}).mappings().first()
-
-        if account is None:
-            return "Paper portfolio: simulation account has not been initialized yet."
-        initial_cash = float(account["initial_cash"])
+        ''')).mappings().first()
         if latest is None:
-            pending_date = account["pending_prediction_date"]
-            pending_line = f"Pending prediction date: {pending_date}\n" if pending_date else ""
-            return (
-                "Paper portfolio: no completed simulation session yet.\n"
-                f"Starting balance: INR {initial_cash:,.2f}\n{pending_line}"
-            )
+            return "Paper portfolio: no simulation days have been recorded yet."
 
         history = connection.execute(text('''
             SELECT simulation_day, trading_date, total_value
-            FROM paper_portfolio_daily_results
-            WHERE account_id = :account_id
+            FROM paper_simulation_daily_totals
             ORDER BY simulation_day
-        '''), {"account_id": "default"}).mappings().all()
+        ''')).mappings().all()
 
-        investments = connection.execute(text('''
-            SELECT "Ticker" AS ticker,
-                   "Amount" AS amount,
-                   "Result" AS result,
-                   "Profit_Loss" AS profit_loss
-            FROM paper_investment_records
-            WHERE "Next_Day" = :trading_date
-              AND "Result" IS NOT NULL
-            ORDER BY "Ticker"
-        '''), {"trading_date": latest["trading_date"]}).mappings().all()
+        latest_investment_date = connection.execute(text('''
+            SELECT MAX(investment_date) FROM paper_simulation_holdings
+        ''')).scalar()
+        holdings = connection.execute(text('''
+            SELECT ticker, amount, result, profit_loss, next_day
+            FROM paper_simulation_holdings
+            WHERE investment_date = :investment_date
+            ORDER BY ticker
+        '''), {"investment_date": latest_investment_date}).mappings().all() if latest_investment_date else []
 
+    initial_cash = float(history[0]["total_value"]) if history else float(latest["total_value"])
     overall_pnl = float(latest["total_value"]) - initial_cash
     lines = [
-        f"Paper portfolio result - Day {latest['simulation_day']} ({latest['trading_date']})",
-        f"Invested: INR {float(latest['invested_value']):,.2f}",
-        f"Cash: INR {float(latest['cash']):,.2f}",
-        f"Total value: INR {float(latest['total_value']):,.2f}",
-        f"Day P/L: INR {float(latest['day_pnl']):+,.2f}",
-        f"Overall P/L from INR {initial_cash:,.2f}: INR {overall_pnl:+,.2f}",
+        f"Paper simulation - Day {latest['simulation_day']} ({latest['trading_date']})",
+        f"Portfolio value: INR {float(latest['total_value']):,.2f}",
+        f"Day profit/loss: INR {float(latest['profit_loss']):+,.2f}",
+        f"Total profit/loss from INR {initial_cash:,.2f}: INR {overall_pnl:+,.2f}",
         "",
-        "Simulation progression:",
-        f"Day 0 (initial): INR {initial_cash:,.2f}",
+        "Daily totals:",
     ]
     lines.extend(
         f"Day {row['simulation_day']} ({row['trading_date']}): INR {float(row['total_value']):,.2f}"
         for row in history
     )
-    lines.extend([
-        "",
-        "Investments with results for this session:",
-    ])
-    if investments:
-        lines.append("Ticker | Invested | Result value | P/L")
-        for row in investments:
+    lines.extend(["", f"Holdings (investment date: {latest_investment_date}):"])
+    if holdings:
+        lines.append("Ticker | Invested | Result | Profit/loss")
+        for row in holdings:
+            result = f"INR {float(row['result']):,.2f}" if row["result"] is not None else "Pending"
+            pnl = f"INR {float(row['profit_loss']):+,.2f}" if row["profit_loss"] is not None else "Pending"
             lines.append(
-                f"{row['ticker']} | INR {float(row['amount']):,.2f} | "
-                f"INR {float(row['result']):,.2f} | INR {float(row['profit_loss']):+,.2f}"
+                f"{row['ticker']} | INR {float(row['amount']):,.2f} | {result} | {pnl}"
             )
+        pending_date = next((row["next_day"] for row in holdings if row["result"] is None), None)
+        if pending_date:
+            lines.append(f"Results pending for: {pending_date}")
     else:
-        lines.append("No new positions were opened for this session.")
-
-    pending_date = account["pending_prediction_date"]
-    if pending_date:
-        lines.extend(["", f"Next paper-trade date: {pending_date}"])
+        lines.append("No holdings have been selected yet.")
     return "\n".join(lines)
 
 def generate_and_send_report():
