@@ -345,8 +345,60 @@ def run_simulation(engine):
         while True:
             snapshot_date = connection.execute(GET_LATEST_HOLDING_DATE).scalar()
             if snapshot_date is None:
-                print("No pending holdings are waiting for a result.")
-                break
+                # A prior run may have completed the last snapshot before the
+                # next predictions were available. Start the next session from
+                # the latest account value instead of requiring a pending row.
+                latest_total = connection.execute(GET_LATEST_TOTAL).mappings().first()
+                if latest_total is None:
+                    print("No pending holdings or prior simulation total is available.")
+                    break
+
+                picks = unique_top_five(connection.execute(
+                    UPCOMING_PREDICTIONS,
+                    {"after_date": latest_total["trading_date"]},
+                ).mappings().all())
+                if len(picks) != 5:
+                    print("No new prediction session has five usable picks.")
+                    break
+
+                invest_on = picks[0]["entry_date"]
+                next_day = picks[0]["prediction_date"]
+                if any(row["entry_date"] != invest_on for row in picks):
+                    print("The next five picks do not share one entry close date.")
+                    break
+                if invest_on < latest_total["trading_date"]:
+                    print(f"Skipping stale picks with entry date {invest_on}.")
+                    break
+
+                available_cash = float(latest_total["total_value"])
+                if available_cash <= 0:
+                    print("Portfolio value is zero; no new holdings were opened.")
+                    break
+
+                # If the next available entry close is later than the last
+                # recorded day, the account stayed in cash in between.
+                if invest_on > latest_total["trading_date"]:
+                    day_number = int(latest_total["simulation_day"]) + 1
+                    connection.execute(UPSERT_TOTAL, {
+                        "trading_date": invest_on,
+                        "simulation_day": day_number,
+                        "total_value": available_cash,
+                        "profit_loss": 0,
+                    })
+
+                scale = min(1.0, available_cash / sum(TARGET_ALLOCATIONS))
+                print(f"Opening five holdings for {next_day} using {invest_on} closes:")
+                for rank, row in enumerate(picks):
+                    price = float(row["entry_price"])
+                    amount = TARGET_ALLOCATIONS[rank] * scale
+                    connection.execute(UPSERT_HOLDING, {
+                        "investment_date": invest_on, "ticker": row["ticker"],
+                        "amount": amount, "shares": amount / price,
+                        "entry_price": price, "market_value": amount,
+                        "next_day": next_day,
+                    })
+                    print(f"  {row['ticker']}: INR {amount:.2f} at INR {price:.2f}")
+                continue
             holdings = [dict(row) for row in connection.execute(
                 GET_HOLDINGS, {"investment_date": snapshot_date}
             ).mappings().all()]
